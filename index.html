@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#16161e">
+<title>MusiccollectionCard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ 0. 門鎖（全屏） ═══ -->
+<section id="page-lock" class="page">
+  <div class="lock-box">
+    <h1>🎼</h1>
+    <p class="app-name">MusiccollectionCard</p>
+    <p class="hint">私人音樂分析筆記</p>
+    <div id="lock-set" class="hidden">
+      <label>設定密碼（首次）</label>
+      <input type="password" id="pw-new1" placeholder="新密碼">
+      <input type="password" id="pw-new2" placeholder="再打一次">
+    </div>
+    <div id="lock-enter" class="hidden">
+      <label>密碼</label>
+      <input type="password" id="pw-in" placeholder="密碼">
+    </div>
+    <label>GitHub PAT</label>
+    <input type="password" id="pat-in" placeholder="github_pat_…（由備忘錄貼上）">
+    <p class="hint">PAT 只存你部手機，只傳俾 GitHub</p>
+    <button id="btn-unlock" class="primary wide">解鎖</button>
+    <p id="lock-err" class="error"></p>
+  </div>
+</section>
+
+<!-- ═══ App 本體 ═══ -->
+<div id="app" class="hidden">
+<main id="content">
+
+  <!-- 1. 主頁 -->
+  <section id="page-home" class="page">
+    <div class="paste-hero">
+      <h2>貼 YouTube 連結</h2>
+      <input id="paste-link" placeholder="https://youtube.com/watch?v=…">
+      <button id="btn-paste-go" class="primary big">開始新記錄 →</button>
+    </div>
+    <div class="stat-row">
+      <button class="stat-card" data-nav="db"><b id="stat-works">0</b><span>作品</span></button>
+      <button class="stat-card" data-nav="db"><b id="stat-perfs">0</b><span>版本</span></button>
+      <button class="stat-card" data-nav="db"><b id="stat-people">0</b><span>音樂人</span></button>
+    </div>
+    <div class="panel">
+      <h3>⏳ 待確認</h3>
+      <div id="pending-list"><p class="hint">暫時冇嘢要補 👍</p></div>
+    </div>
+    <div class="panel">
+      <h3>最近記錄</h3>
+      <div id="recent-list"></div>
+    </div>
+  </section>
+
+  <!-- 2. 表單（5 步全屏） -->
+  <section id="page-form" class="page hidden">
+    <header class="wizard-head">
+      <h2 id="form-title">新版本記錄</h2>
+      <div class="dots" id="step-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+    </header>
+
+    <div class="step-body">
+
+      <!-- ① 貼 link -->
+      <div class="step-pane" id="step-1">
+        <label>YouTube 連結</label>
+        <input id="yt-url" placeholder="https://…">
+        <button id="btn-fetch" class="primary wide">抓取資料</button>
+        <div id="yt-preview" class="yt-preview hidden">
+          <img id="yt-thumb" alt="">
+          <b id="yt-title"></b>
+          <p id="yt-channel" class="hint"></p>
+          <p class="hint">時長：<span id="yt-duration">⏳ 待補</span></p>
+          <input id="yt-duration-in" class="mini" placeholder="自己填，例 4:32">
+        </div>
+        <p class="hint">抓唔到無所謂，直接下一步，標題之後補得。</p>
+      </div>
+
+      <!-- ② 錄音資料 -->
+      <div class="step-pane hidden" id="step-2">
+        <h3>演奏者</h3>
+        <div id="performer-rows"></div>
+        <button class="ghost wide" id="btn-add-performer">＋ 加演奏者</button>
+        <div class="field"><label>錄音年份</label><button class="pick" id="f-year"></button></div>
+        <div class="field"><label>Label</label><button class="pick" id="f-label"></button></div>
+        <div class="field"><label>錄音類型</label><button class="pick" id="f-rectype"></button></div>
+        <div class="field"><label>總評</label><button class="pick" id="f-stars"></button></div>
+        <div class="field"><label>速度印象</label><button class="pick" id="f-tempo"></button></div>
+        <div class="field"><label>音色取向</label><button class="pick" id="f-timbre"></button></div>
+        <div class="field"><label>風格取向</label><button class="pick" id="f-style"></button></div>
+        <label>一句話總評</label>
+        <textarea id="f-oneline" rows="3" placeholder="想講咩都得…"></textarea>
+      </div>
+
+      <!-- ③ 作品確認 -->
+      <div class="step-pane hidden" id="step-3">
+        <p>呢條片係邊首作品？</p>
+        <div id="f-work-select"></div>
+        <button class="ghost wide" id="btn-new-work">＋ 新作品（展開作品卡）</button>
+        <div id="work-card-slot"></div>
+      </div>
+
+      <!-- ④ 逐段筆記 -->
+      <div class="step-pane hidden" id="step-4">
+        <div id="player-box" class="player-box"></div>
+        <button id="btn-pin" class="pin-btn">⏱ 落釘</button>
+        <p class="hint">單撳＝記低時間繼續聽；長撳＝記低兼即刻寫</p>
+        <div id="pin-list"></div>
+        <div id="segment-rows"></div>
+        <button class="ghost wide" id="btn-add-segment">＋ 直接加一段（唔落釘）</button>
+      </div>
+
+      <!-- ⑤ 總結 -->
+      <div class="step-pane hidden" id="step-5">
+        <h3>✅ 最鍾意</h3>
+        <div id="like-candidates"></div>
+        <h3>⛔ 唔鍾意</h3>
+        <div id="dislike-candidates"></div>
+        <h3>✍️ 對我自己拉奏嘅改動（≤5 行）</h3>
+        <div id="change-rows"></div>
+        <button class="ghost wide" id="btn-add-change">＋ 加一行</button>
+        <h3>🧪 練習實驗</h3>
+        <div id="experiment-rows"></div>
+        <button id="btn-save" class="primary big wide">💾 儲存返 GitHub</button>
+        <p id="save-status" class="hint"></p>
+      </div>
+
+    </div>
+
+    <!-- 固定底欄：永遠喺同一位置 -->
+    <div class="form-bar">
+      <button id="btn-prev" class="ghost">← 上一步</button>
+      <button id="btn-next" class="primary">下一步 →</button>
+    </div>
+  </section>
+
+  <!-- 3. 作品卡 -->
+  <section id="page-work" class="page hidden">
+    <header class="subhead"><button class="back" data-nav="db">←</button><h2>作品卡</h2></header>
+    <label>作曲家</label><button class="pick" id="w-composer"></button>
+    <label>作品名稱</label><input id="w-name">
+    <label>作品編號</label><button class="pick" id="w-catalog"></button>
+    <label>總調性</label><button class="pick" id="w-key"></button>
+    <label>編制</label><button class="pick" id="w-scoring"></button>
+    <label>樂譜版本</label><button class="pick" id="w-edition"></button>
+    <label>時期／樂派</label><button class="pick" id="w-era"></button>
+    <h3>曲式結構（逐樂章）</h3>
+    <div id="movement-rows"></div>
+    <button class="ghost wide" id="btn-add-movement">＋ 加樂章</button>
+    <label>創作背景（可跳）</label><textarea id="w-background" rows="3"></textarea>
+    <label>題獻／首演</label><input id="w-dedication">
+    <label>同類作品</label><button class="pick" id="w-similar"></button>
+    <textarea id="w-similar-note" rows="2" placeholder="一句講同邊首似、似喺邊"></textarea>
+    <h3>理想版本目標（各一句）</h3>
+    <input id="goal-narrative" placeholder="敘事：…">
+    <input id="goal-tempo" placeholder="速度：…">
+    <input id="goal-timbre" placeholder="音色：…">
+    <input id="goal-style" placeholder="風格：…">
+    <input id="goal-structure" placeholder="結構焦點：…">
+    <h3>📎 資料來源</h3>
+    <div id="w-sources"></div>
+    <button class="ghost wide src-add" data-target="work">📎 加來源</button>
+    <button id="btn-save-work" class="primary big wide">💾 儲存作品卡</button>
+  </section>
+
+  <!-- 4. 音樂人卡 -->
+  <section id="page-musician" class="page hidden">
+    <header class="subhead"><button class="back" data-nav="db">←</button><h2>音樂人卡</h2></header>
+    <label>名稱</label><input id="m-name">
+    <label>別名／其他拼寫</label><input id="m-alias" placeholder="例 Hahn, Hilary">
+    <label>類型</label><button class="pick" id="m-type"></button>
+    <label>樂器</label><button class="pick" id="m-instrument"></button>
+    <label>Roles</label><button class="pick" id="m-roles"></button>
+    <label>Style-Era</label><button class="pick" id="m-styleera"></button>
+    <label>活躍年代</label>
+    <div class="row2">
+      <input id="m-active-from" inputmode="numeric" placeholder="由，例 1990">
+      <input id="m-active-to" inputmode="numeric" placeholder="迄（在世留空）">
+    </div>
+    <label>一句話</label><textarea id="m-oneline" rows="2"></textarea>
+    <p class="hint">常合作音樂人＋錄音清單：自動計算，唔使填</p>
+    <h3>📎 資料來源</h3>
+    <div id="m-sources"></div>
+    <button class="ghost wide src-add" data-target="musician">📎 加來源</button>
+    <button id="btn-save-musician" class="primary big wide">💾 儲存音樂人卡</button>
+  </section>
+
+  <!-- 5. 資料庫 -->
+  <section id="page-db" class="page hidden">
+    <h2>資料庫</h2>
+    <div class="tabs" id="db-tabs">
+      <button data-view="table" class="active">列表</button>
+      <button data-view="graph">關係圖</button>
+      <button data-view="timeline">時間軸</button>
+    </div>
+    <input id="db-search" placeholder="🔍 作品／版本／音樂人／筆記">
+    <div id="db-filters" class="chip-row"></div>
+    <div id="view-table"></div>
+    <div id="view-graph" class="hidden"></div>
+    <div id="view-timeline" class="hidden"></div>
+  </section>
+
+  <!-- 6. 詞庫 -->
+  <section id="page-vocab" class="page hidden">
+    <h2>詞庫 <span id="vocab-count" class="hint"></span></h2>
+    <input id="vocab-search" placeholder="🔍 中文／English／tag">
+    <div id="vocab-cats" class="chip-row"></div>
+    <div id="vocab-list"></div>
+    <button id="btn-add-term" class="primary wide">＋ 新增詞條</button>
+  </section>
+
+  <!-- 7. 設定 -->
+  <section id="page-settings" class="page hidden">
+    <h2>設定</h2>
+    <div class="panel">
+      <h3>GitHub</h3>
+      <p>用戶：<b id="set-user"></b></p>
+      <p>資料 repo：<b id="set-repo"></b></p>
+      <p>PAT：<span id="set-pat-status"></span></p>
+      <button id="btn-renew-pat" class="ghost wide">換 PAT</button>
+    </div>
+    <div class="panel">
+      <h3>資料</h3>
+      <p id="set-stats" class="hint"></p>
+      <button id="btn-retry-sync" class="ghost wide">重試未同步記錄</button>
+      <button id="btn-export" class="ghost wide">匯出全部 JSON</button>
+    </div>
+    <div class="panel">
+      <h3>安全</h3>
+      <button id="btn-lock" class="ghost wide">🔒 立即上鎖</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- 底部導航（大拇指黃金地帶） -->
+<nav id="bottomnav">
+  <button data-nav="home">🏠<span>主頁</span></button>
+  <button data-nav="db">📚<span>資料庫</span></button>
+  <button id="btn-fab" aria-label="新記錄">＋</button>
+  <button data-nav="vocab">🎼<span>詞庫</span></button>
+  <button data-nav="settings">⚙️<span>設定</span></button>
+</nav>
+</div>
+
+<!-- 全屏底部彈出 sheet（揀詞／新增自訂／加來源，全部用呢個） -->
+<div id="sheet" class="hidden"><div id="sheet-content"></div></div>
+
+<!-- toast 短提示 -->
+<div id="toast" class="hidden"></div>
+
+<script src="config.js"></script>
+<script src="vocab-seed-1.js"></script>
+<script src="vocab-seed-2.js"></script>
+<script src="api.js"></script>
+<script src="vocab.js"></script>
+<script src="form.js"></script>
+<script src="views.js"></script>
+<script src="main.js"></script>
+</body>
+        </html>
+                              
