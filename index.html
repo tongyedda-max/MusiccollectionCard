@@ -24,6 +24,42 @@ window.toast=function(msg){
   window.__toastT=setTimeout(function(){ t.style.opacity='0'; },2400);
 };
   </script>
+
+  <script>
+/* ── 表單導航補線：下一步／上一步／手動過關 ── */
+window.curStep=function(){
+  var c=1;
+  document.querySelectorAll('#page-form .step-pane').forEach(function(p,i){
+    if(!p.classList.contains('hidden')) c=i+1;
+  });
+  return c;
+};
+window.FormNext=function(){
+  var c=curStep();
+  if(c>=5){ Form.save(); return; }
+  Form.go(c+1);
+};
+window.FormPrev=function(){ Form.go(Math.max(curStep()-1,1)); };
+window.addEventListener('DOMContentLoaded',function(){
+  /* 第①步加「手動過關」掣 */
+  var s1=document.getElementById('step-1');
+  if(s1 && !document.getElementById('btn-manual-go')){
+    var b=document.createElement('button');
+    b.id='btn-manual-go';
+    b.className='primary';
+    b.style.cssText='width:100%;margin-top:14px;';
+    b.textContent='唔使等抓取，直接下一步 →';
+    b.addEventListener('click',function(){ Form.go(2); });
+    s1.appendChild(b);
+  }
+  /* 駁返下一步／上一步 */
+  var nb=document.getElementById('btn-next'),
+      pb=document.getElementById('btn-prev');
+  if(nb) nb.addEventListener('click',function(e){ e.stopImmediatePropagation(); FormNext(); });
+  if(pb) pb.addEventListener('click',function(e){ e.stopImmediatePropagation(); FormPrev(); });
+});
+</script>
+
   
 
 <!-- ═══ 0. 門鎖（全屏） ═══ -->
