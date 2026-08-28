@@ -60,6 +60,94 @@ window.addEventListener('DOMContentLoaded',function(){
 });
 </script>
 
+  <script>
+/* ── FormNav v2：浮動導航，任何一步都有 ◀ ▶，1–5 自由跳 ── */
+(function(){
+  var STEPS=5, BAR=null, CHIPS=[], NXT=null, PRV=null;
+  var TITLES=['① 貼Link','② 錄音資料','③ 作品確認','④ 逐段筆記','⑤ 總結'];
+  function visible(){
+    var pf=document.getElementById('page-form'); if(!pf) return false;
+    if(pf.offsetParent!==null) return true;
+    var cs=getComputedStyle(pf);
+    return cs.display!=='none' && pf.getBoundingClientRect().height>0;
+  }
+  window.curStep=function(){
+    var c=1;
+    document.querySelectorAll('#page-form .step-pane').forEach(function(p,i){
+      if(!p.classList.contains('hidden')) c=i+1;
+    });
+    return c;
+  };
+  function forceSwitch(n){
+    document.querySelectorAll('#page-form .step-pane').forEach(function(p,i){
+      p.classList.toggle('hidden', i!==n-1);
+    });
+    var t=document.getElementById('form-title'); if(t) t.textContent=TITLES[n-1];
+    var pb=document.getElementById('btn-prev'); if(pb) pb.style.visibility=(n===1)?'hidden':'visible';
+    window.scrollTo(0,0);
+  }
+  window.FormGo=function(n){
+    if(n<1||n>STEPS) return;
+    var ok=false;
+    try{ Form.go(n); ok=(curStep()===n); }catch(e){ ok=false; }
+    if(!ok) forceSwitch(n);
+    sync();
+  };
+  function sync(){
+    if(!BAR) return;
+    var on=visible();
+    BAR.style.display=on?'flex':'none';
+    if(!on) return;
+    var c=curStep();
+    CHIPS.forEach(function(ch,i){
+      var act=(i+1===c);
+      ch.style.background=act?'#c9a227':'#ececec';
+      ch.style.color=act?'#fff':'#666';
+    });
+    PRV.style.opacity=(c===1)?.35:1;
+    NXT.textContent=(c===STEPS)?'💾 儲存':'下一步 ▶';
+  }
+  window.addEventListener('DOMContentLoaded',function(){
+    var st=document.createElement('style');
+    st.textContent='.form-bar{display:none!important}';
+    document.head.appendChild(st);
+    BAR=document.createElement('div');
+    BAR.style.cssText='position:fixed;left:0;right:0;bottom:0;display:none;align-items:center;gap:7px;padding:9px 10px calc(9px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #ddd;box-shadow:0 -2px 10px rgba(0,0,0,.08);z-index:99000;';
+    PRV=document.createElement('button');
+    PRV.textContent='◀';
+    PRV.style.cssText='flex:0 0 46px;height:42px;border-radius:21px;border:1px solid #ccc;background:#f6f6f6;font-size:16px;';
+    PRV.addEventListener('click',function(){ FormGo(Math.max(curStep()-1,1)); });
+    BAR.appendChild(PRV);
+    for(var i=1;i<=STEPS;i++)(function(n){
+      var ch=document.createElement('button');
+      ch.textContent=String(n);
+      ch.style.cssText='flex:0 0 34px;height:34px;border-radius:50%;border:none;background:#ececec;color:#666;font-size:14px;font-weight:700;';
+      ch.addEventListener('click',function(){ FormGo(n); });
+      CHIPS.push(ch); BAR.appendChild(ch);
+    })(i);
+    NXT=document.createElement('button');
+    NXT.style.cssText='flex:1;height:42px;border-radius:21px;border:none;background:#c9a227;color:#fff;font-size:15px;font-weight:700;';
+    NXT.addEventListener('click',function(){
+      var c=curStep();
+      if(c>=STEPS){
+        var pr=null;
+        try{ pr=Form.save(); }catch(e){ console.warn(e); }
+        if(pr&&pr.catch) pr.catch(function(e){ console.warn('儲存錯誤：',e); if(window.toast) toast('儲存出錯：'+e.message); });
+      } else FormGo(c+1);
+    });
+    BAR.appendChild(NXT);
+    document.body.appendChild(BAR);
+    var pf=document.getElementById('page-form');
+    if(pf&&window.MutationObserver){
+      new MutationObserver(sync).observe(pf,{attributes:true,subtree:true,attributeFilter:['class','style']});
+    }
+    setInterval(sync,400);
+    sync();
+  });
+})();
+  </script>
+  
+
   
 
 <!-- ═══ 0. 門鎖（全屏） ═══ -->
