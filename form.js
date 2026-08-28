@@ -529,3 +529,6 @@ return {
 };
 
 })();
+
+
+window.Form=Form;
