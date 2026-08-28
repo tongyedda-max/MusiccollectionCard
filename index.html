@@ -12,6 +12,20 @@
 <script src="https://cdn.jsdelivr.net/npm/eruda@3.4.3/eruda.min.js"></script>
 <script>eruda.init();</script>
 
+  <script>
+/* ── toast 全域函式（修復） ── */
+window.toast=function(msg){
+  var t=document.getElementById('toast');
+  if(!t){ t=document.createElement('div'); t.id='toast'; document.body.appendChild(t); }
+  t.textContent=msg;
+  t.style.cssText='position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#2b2b33;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.35);opacity:0;transition:opacity .25s;pointer-events:none;max-width:82vw;text-align:center;';
+  requestAnimationFrame(function(){ t.style.opacity='1'; });
+  clearTimeout(window.__toastT);
+  window.__toastT=setTimeout(function(){ t.style.opacity='0'; },2400);
+};
+  </script>
+  
+
 <!-- ═══ 0. 門鎖（全屏） ═══ -->
 <section id="page-lock" class="page">
   <div class="lock-box">
@@ -44,7 +58,8 @@
     <div class="paste-hero">
       <h2>貼 YouTube 連結</h2>
       <input id="paste-link" placeholder="https://youtube.com/watch?v=…">
-      <button id="btn-paste-go" class="primary big">開始新記錄 →</button>
+      <button id="btn-paste-go" class="primary big" onclick="Form.newRecord(document.getElementById('paste-link').value.trim())">開始新記錄 →</button>
+
     </div>
     <div class="stat-row">
       <button class="stat-card" data-nav="db"><b id="stat-works">0</b><span>作品</span></button>
@@ -246,7 +261,8 @@
 <nav id="bottomnav">
   <button data-nav="home">🏠<span>主頁</span></button>
   <button data-nav="db">📚<span>資料庫</span></button>
-  <button id="btn-fab" aria-label="新記錄">＋</button>
+  <button id="btn-fab" aria-label="新記錄" onclick="Form.newRecord()">＋</button>
+
   <button data-nav="vocab">🎼<span>詞庫</span></button>
   <button data-nav="settings">⚙️<span>設定</span></button>
 </nav>
