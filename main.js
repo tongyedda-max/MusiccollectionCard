@@ -170,7 +170,8 @@ document.addEventListener('click',e=>{
   if(nv){ nav(nv.dataset.nav) }
 });
 document.addEventListener('app:ready', async ()=>{
-  await Data.loadAll();
+  try{ await Data.loadAll(); }catch(e){ console.warn('載入舊資料失敗：', e) }
+
   $('#btn-fab').onclick=()=>window.Form&&Form.newRecord();
   $('#btn-paste-go').onclick=()=>window.Form&&Form.newRecord($('#paste-link').value.trim());
   nav('home');
