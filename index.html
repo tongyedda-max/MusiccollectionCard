@@ -2,410 +2,466 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#16161e">
-<title>MusiccollectionCard</title>
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🎵 音樂記錄生成器 → Logseq</title>
+<style>
+body{font-family:system-ui;max-width:680px;margin:0 auto;padding:12px;background:#fafafa;color:#222}
+h1{font-size:20px}h2{margin:14px 0 4px;font-size:16px}h3{margin:12px 0 4px;font-size:14px}
+label{font-size:13px;color:#555;display:block;margin:8px 0 2px}
+input,select,textarea{width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:16px;background:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{padding:6px 10px;border-radius:999px;background:#e8e8ff;border:none;font-size:14px}
+.chip.on{background:#5b5bd6;color:#fff}
+button{font-size:15px;padding:9px 12px;border-radius:8px;border:1px solid #ccc;background:#fff}
+.go{background:#5b5bd6;color:#fff;border:none;width:100%;font-size:17px;padding:13px;margin-top:12px}
+.clr{font-size:13px;color:#a33;margin-top:8px;width:100%}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #ccc;border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0}.seg .on{background:#5b5bd6;color:#fff}
+.note{font-size:12px;color:#888}.row{display:flex;gap:6px;margin:4px 0;align-items:flex-start}
+.row input,.row textarea{flex:1}.row .tm{max-width:85px;flex:none}
+.saved{color:#2a7;font-size:13px}
+.tabs{display:flex;gap:5px;margin:10px 0;flex-wrap:wrap}
+.tabs button{flex:1;min-width:80px}.tabs .on{background:#5b5bd6;color:#fff;border-color:#5b5bd6}
+.page{display:none}.page.show{display:block}
+.traylab{font-size:12px;color:#888;margin:6px 0 2px}
+.vrow{border-bottom:1px solid #eee;padding:8px 2px;font-size:14px}
+.vrow b{font-size:15px}.vrow .en{color:#5b5bd6}
+.vrow .vn{display:block;color:#777;font-size:13px;margin-top:2px}
+.vrow .del{float:right;border:none;color:#a33;font-size:13px}
+.catbar{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.catbar button{font-size:13px;padding:6px 9px}.catbar .on{background:#333;color:#fff}
+#playerWrap{margin:8px 0}#ytbox{width:100%;aspect-ratio:16/9;border:0;border-radius:8px}
+.ytmeta{display:flex;gap:8px;align-items:center;margin:8px 0}
+.ytmeta img{width:80px;border-radius:6px}
+</style>
 </head>
 <body>
-  
-<script src="https://cdn.jsdelivr.net/npm/eruda@3.4.3/eruda.min.js"></script>
-<script>eruda.init();</script>
+<h1>🎵 音樂記錄生成器 <span class="saved" id="tag"></span></h1>
+<p class="note">原版五步全欄位 → 生成 → Copy → 貼入 Logseq。自動存。</p>
 
-  <script>
-/* ── toast 全域函式（修復） ── */
-window.toast=function(msg){
-  var t=document.getElementById('toast');
-  if(!t){ t=document.createElement('div'); t.id='toast'; document.body.appendChild(t); }
-  t.textContent=msg;
-  t.style.cssText='position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#2b2b33;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.35);opacity:0;transition:opacity .25s;pointer-events:none;max-width:82vw;text-align:center;';
-  requestAnimationFrame(function(){ t.style.opacity='1'; });
-  clearTimeout(window.__toastT);
-  window.__toastT=setTimeout(function(){ t.style.opacity='0'; },2400);
-};
-  </script>
-
-  <script>
-/* ── 表單導航補線：下一步／上一步／手動過關 ── */
-window.curStep=function(){
-  var c=1;
-  document.querySelectorAll('#page-form .step-pane').forEach(function(p,i){
-    if(!p.classList.contains('hidden')) c=i+1;
-  });
-  return c;
-};
-window.FormNext=function(){
-  var c=curStep();
-  if(c>=5){ Form.save(); return; }
-  Form.go(c+1);
-};
-window.FormPrev=function(){ Form.go(Math.max(curStep()-1,1)); };
-window.addEventListener('DOMContentLoaded',function(){
-  /* 第①步加「手動過關」掣 */
-  var s1=document.getElementById('step-1');
-  if(s1 && !document.getElementById('btn-manual-go')){
-    var b=document.createElement('button');
-    b.id='btn-manual-go';
-    b.className='primary';
-    b.style.cssText='width:100%;margin-top:14px;';
-    b.textContent='唔使等抓取，直接下一步 →';
-    b.addEventListener('click',function(){ Form.go(2); });
-    s1.appendChild(b);
-  }
-  /* 駁返下一步／上一步 */
-  var nb=document.getElementById('btn-next'),
-      pb=document.getElementById('btn-prev');
-  if(nb) nb.addEventListener('click',function(e){ e.stopImmediatePropagation(); FormNext(); });
-  if(pb) pb.addEventListener('click',function(e){ e.stopImmediatePropagation(); FormPrev(); });
-});
-</script>
-
-  <script>
-/* ── FormNav v2：浮動導航，任何一步都有 ◀ ▶，1–5 自由跳 ── */
-(function(){
-  var STEPS=5, BAR=null, CHIPS=[], NXT=null, PRV=null;
-  var TITLES=['① 貼Link','② 錄音資料','③ 作品確認','④ 逐段筆記','⑤ 總結'];
-  function visible(){
-    var pf=document.getElementById('page-form'); if(!pf) return false;
-    if(pf.offsetParent!==null) return true;
-    var cs=getComputedStyle(pf);
-    return cs.display!=='none' && pf.getBoundingClientRect().height>0;
-  }
-  window.curStep=function(){
-    var c=1;
-    document.querySelectorAll('#page-form .step-pane').forEach(function(p,i){
-      if(!p.classList.contains('hidden')) c=i+1;
-    });
-    return c;
-  };
-  function forceSwitch(n){
-    document.querySelectorAll('#page-form .step-pane').forEach(function(p,i){
-      p.classList.toggle('hidden', i!==n-1);
-    });
-    var t=document.getElementById('form-title'); if(t) t.textContent=TITLES[n-1];
-    var pb=document.getElementById('btn-prev'); if(pb) pb.style.visibility=(n===1)?'hidden':'visible';
-    window.scrollTo(0,0);
-  }
-  window.FormGo=function(n){
-    if(n<1||n>STEPS) return;
-    var ok=false;
-    try{ Form.go(n); ok=(curStep()===n); }catch(e){ ok=false; }
-    if(!ok) forceSwitch(n);
-    sync();
-  };
-  function sync(){
-    if(!BAR) return;
-    var on=visible();
-    BAR.style.display=on?'flex':'none';
-    if(!on) return;
-    var c=curStep();
-    CHIPS.forEach(function(ch,i){
-      var act=(i+1===c);
-      ch.style.background=act?'#c9a227':'#ececec';
-      ch.style.color=act?'#fff':'#666';
-    });
-    PRV.style.opacity=(c===1)?.35:1;
-    NXT.textContent=(c===STEPS)?'💾 儲存':'下一步 ▶';
-  }
-  window.addEventListener('DOMContentLoaded',function(){
-    var st=document.createElement('style');
-    st.textContent='.form-bar{display:none!important}';
-    document.head.appendChild(st);
-    BAR=document.createElement('div');
-    BAR.style.cssText='position:fixed;left:0;right:0;bottom:0;display:none;align-items:center;gap:7px;padding:9px 10px calc(9px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #ddd;box-shadow:0 -2px 10px rgba(0,0,0,.08);z-index:99000;';
-    PRV=document.createElement('button');
-    PRV.textContent='◀';
-    PRV.style.cssText='flex:0 0 46px;height:42px;border-radius:21px;border:1px solid #ccc;background:#f6f6f6;font-size:16px;';
-    PRV.addEventListener('click',function(){ FormGo(Math.max(curStep()-1,1)); });
-    BAR.appendChild(PRV);
-    for(var i=1;i<=STEPS;i++)(function(n){
-      var ch=document.createElement('button');
-      ch.textContent=String(n);
-      ch.style.cssText='flex:0 0 34px;height:34px;border-radius:50%;border:none;background:#ececec;color:#666;font-size:14px;font-weight:700;';
-      ch.addEventListener('click',function(){ FormGo(n); });
-      CHIPS.push(ch); BAR.appendChild(ch);
-    })(i);
-    NXT=document.createElement('button');
-    NXT.style.cssText='flex:1;height:42px;border-radius:21px;border:none;background:#c9a227;color:#fff;font-size:15px;font-weight:700;';
-    NXT.addEventListener('click',function(){
-      var c=curStep();
-      if(c>=STEPS){
-        var pr=null;
-        try{ pr=Form.save(); }catch(e){ console.warn(e); }
-        if(pr&&pr.catch) pr.catch(function(e){ console.warn('儲存錯誤：',e); if(window.toast) toast('儲存出錯：'+e.message); });
-      } else FormGo(c+1);
-    });
-    BAR.appendChild(NXT);
-    document.body.appendChild(BAR);
-    var pf=document.getElementById('page-form');
-    if(pf&&window.MutationObserver){
-      new MutationObserver(sync).observe(pf,{attributes:true,subtree:true,attributeFilter:['class','style']});
-    }
-    setInterval(sync,400);
-    sync();
-  });
-})();
-  </script>
-  
-
-  
-
-<!-- ═══ 0. 門鎖（全屏） ═══ -->
-<section id="page-lock" class="page">
-  <div class="lock-box">
-    <h1>🎼</h1>
-    <p class="app-name">MusiccollectionCard</p>
-    <p class="hint">私人音樂分析筆記</p>
-    <div id="lock-set" class="hidden">
-      <label>設定密碼（首次）</label>
-      <input type="password" id="pw-new1" placeholder="新密碼">
-      <input type="password" id="pw-new2" placeholder="再打一次">
-    </div>
-    <div id="lock-enter" class="hidden">
-      <label>密碼</label>
-      <input type="password" id="pw-in" placeholder="密碼">
-    </div>
-    <label>GitHub PAT</label>
-    <input type="password" id="pat-in" placeholder="github_pat_…（由備忘錄貼上）">
-    <p class="hint">PAT 只存你部手機，只傳俾 GitHub</p>
-    <button id="btn-unlock" class="primary wide">解鎖</button>
-    <p id="lock-err" class="error"></p>
-  </div>
-</section>
-
-<!-- ═══ App 本體 ═══ -->
-<div id="app" class="hidden">
-<main id="content">
-
-  <!-- 1. 主頁 -->
-  <section id="page-home" class="page">
-    <div class="paste-hero">
-      <h2>貼 YouTube 連結</h2>
-      <input id="paste-link" placeholder="https://youtube.com/watch?v=…">
-      <button id="btn-paste-go" class="primary big" onclick="Form.newRecord(document.getElementById('paste-link').value.trim())">開始新記錄 →</button>
-
-    </div>
-    <div class="stat-row">
-      <button class="stat-card" data-nav="db"><b id="stat-works">0</b><span>作品</span></button>
-      <button class="stat-card" data-nav="db"><b id="stat-perfs">0</b><span>版本</span></button>
-      <button class="stat-card" data-nav="db"><b id="stat-people">0</b><span>音樂人</span></button>
-    </div>
-    <div class="panel">
-      <h3>⏳ 待確認</h3>
-      <div id="pending-list"><p class="hint">暫時冇嘢要補 👍</p></div>
-    </div>
-    <div class="panel">
-      <h3>最近記錄</h3>
-      <div id="recent-list"></div>
-    </div>
-  </section>
-
-  <!-- 2. 表單（5 步全屏） -->
-  <section id="page-form" class="page hidden">
-    <header class="wizard-head">
-      <h2 id="form-title">新版本記錄</h2>
-      <div class="dots" id="step-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
-    </header>
-
-    <div class="step-body">
-
-      <!-- ① 貼 link -->
-      <div class="step-pane" id="step-1">
-        <label>YouTube 連結</label>
-        <input id="yt-url" placeholder="https://…">
-        <button id="btn-fetch" class="primary wide">抓取資料</button>
-        <div id="yt-preview" class="yt-preview hidden">
-          <img id="yt-thumb" alt="">
-          <b id="yt-title"></b>
-          <p id="yt-channel" class="hint"></p>
-          <p class="hint">時長：<span id="yt-duration">⏳ 待補</span></p>
-          <input id="yt-duration-in" class="mini" placeholder="自己填，例 4:32">
-        </div>
-        <p class="hint">抓唔到無所謂，直接下一步，標題之後補得。</p>
-      </div>
-
-      <!-- ② 錄音資料 -->
-      <div class="step-pane hidden" id="step-2">
-        <h3>演奏者</h3>
-        <div id="performer-rows"></div>
-        <button class="ghost wide" id="btn-add-performer">＋ 加演奏者</button>
-        <div class="field"><label>錄音年份</label><button class="pick" id="f-year"></button></div>
-        <div class="field"><label>Label</label><button class="pick" id="f-label"></button></div>
-        <div class="field"><label>錄音類型</label><button class="pick" id="f-rectype"></button></div>
-        <div class="field"><label>總評</label><button class="pick" id="f-stars"></button></div>
-        <div class="field"><label>速度印象</label><button class="pick" id="f-tempo"></button></div>
-        <div class="field"><label>音色取向</label><button class="pick" id="f-timbre"></button></div>
-        <div class="field"><label>風格取向</label><button class="pick" id="f-style"></button></div>
-        <label>一句話總評</label>
-        <textarea id="f-oneline" rows="3" placeholder="想講咩都得…"></textarea>
-      </div>
-
-      <!-- ③ 作品確認 -->
-      <div class="step-pane hidden" id="step-3">
-        <p>呢條片係邊首作品？</p>
-        <div id="f-work-select"></div>
-        <button class="ghost wide" id="btn-new-work">＋ 新作品（展開作品卡）</button>
-        <div id="work-card-slot"></div>
-      </div>
-
-      <!-- ④ 逐段筆記 -->
-      <div class="step-pane hidden" id="step-4">
-        <div id="player-box" class="player-box"></div>
-        <button id="btn-pin" class="pin-btn">⏱ 落釘</button>
-        <p class="hint">單撳＝記低時間繼續聽；長撳＝記低兼即刻寫</p>
-        <div id="pin-list"></div>
-        <div id="segment-rows"></div>
-        <button class="ghost wide" id="btn-add-segment">＋ 直接加一段（唔落釘）</button>
-      </div>
-
-      <!-- ⑤ 總結 -->
-      <div class="step-pane hidden" id="step-5">
-        <h3>✅ 最鍾意</h3>
-        <div id="like-candidates"></div>
-        <h3>⛔ 唔鍾意</h3>
-        <div id="dislike-candidates"></div>
-        <h3>✍️ 對我自己拉奏嘅改動（≤5 行）</h3>
-        <div id="change-rows"></div>
-        <button class="ghost wide" id="btn-add-change">＋ 加一行</button>
-        <h3>🧪 練習實驗</h3>
-        <div id="experiment-rows"></div>
-        <button id="btn-save" class="primary big wide">💾 儲存返 GitHub</button>
-        <p id="save-status" class="hint"></p>
-      </div>
-
-    </div>
-
-    <!-- 固定底欄：永遠喺同一位置 -->
-    <div class="form-bar">
-      <button id="btn-prev" class="ghost">← 上一步</button>
-      <button id="btn-next" class="primary">下一步 →</button>
-    </div>
-  </section>
-
-  <!-- 3. 作品卡 -->
-  <section id="page-work" class="page hidden">
-    <header class="subhead"><button class="back" data-nav="db">←</button><h2>作品卡</h2></header>
-    <label>作曲家</label><button class="pick" id="w-composer"></button>
-    <label>作品名稱</label><input id="w-name">
-    <label>作品編號</label><button class="pick" id="w-catalog"></button>
-    <label>總調性</label><button class="pick" id="w-key"></button>
-    <label>編制</label><button class="pick" id="w-scoring"></button>
-    <label>樂譜版本</label><button class="pick" id="w-edition"></button>
-    <label>時期／樂派</label><button class="pick" id="w-era"></button>
-    <h3>曲式結構（逐樂章）</h3>
-    <div id="movement-rows"></div>
-    <button class="ghost wide" id="btn-add-movement">＋ 加樂章</button>
-    <label>創作背景（可跳）</label><textarea id="w-background" rows="3"></textarea>
-    <label>題獻／首演</label><input id="w-dedication">
-    <label>同類作品</label><button class="pick" id="w-similar"></button>
-    <textarea id="w-similar-note" rows="2" placeholder="一句講同邊首似、似喺邊"></textarea>
-    <h3>理想版本目標（各一句）</h3>
-    <input id="goal-narrative" placeholder="敘事：…">
-    <input id="goal-tempo" placeholder="速度：…">
-    <input id="goal-timbre" placeholder="音色：…">
-    <input id="goal-style" placeholder="風格：…">
-    <input id="goal-structure" placeholder="結構焦點：…">
-    <h3>📎 資料來源</h3>
-    <div id="w-sources"></div>
-    <button class="ghost wide src-add" data-target="work">📎 加來源</button>
-    <button id="btn-save-work" class="primary big wide">💾 儲存作品卡</button>
-  </section>
-
-  <!-- 4. 音樂人卡 -->
-  <section id="page-musician" class="page hidden">
-    <header class="subhead"><button class="back" data-nav="db">←</button><h2>音樂人卡</h2></header>
-    <label>名稱</label><input id="m-name">
-    <label>別名／其他拼寫</label><input id="m-alias" placeholder="例 Hahn, Hilary">
-    <label>類型</label><button class="pick" id="m-type"></button>
-    <label>樂器</label><button class="pick" id="m-instrument"></button>
-    <label>Roles</label><button class="pick" id="m-roles"></button>
-    <label>Style-Era</label><button class="pick" id="m-styleera"></button>
-    <label>活躍年代</label>
-    <div class="row2">
-      <input id="m-active-from" inputmode="numeric" placeholder="由，例 1990">
-      <input id="m-active-to" inputmode="numeric" placeholder="迄（在世留空）">
-    </div>
-    <label>一句話</label><textarea id="m-oneline" rows="2"></textarea>
-    <p class="hint">常合作音樂人＋錄音清單：自動計算，唔使填</p>
-    <h3>📎 資料來源</h3>
-    <div id="m-sources"></div>
-    <button class="ghost wide src-add" data-target="musician">📎 加來源</button>
-    <button id="btn-save-musician" class="primary big wide">💾 儲存音樂人卡</button>
-  </section>
-
-  <!-- 5. 資料庫 -->
-  <section id="page-db" class="page hidden">
-    <h2>資料庫</h2>
-    <div class="tabs" id="db-tabs">
-      <button data-view="table" class="active">列表</button>
-      <button data-view="graph">關係圖</button>
-      <button data-view="timeline">時間軸</button>
-    </div>
-    <input id="db-search" placeholder="🔍 作品／版本／音樂人／筆記">
-    <div id="db-filters" class="chip-row"></div>
-    <div id="view-table"></div>
-    <div id="view-graph" class="hidden"></div>
-    <div id="view-timeline" class="hidden"></div>
-  </section>
-
-  <!-- 6. 詞庫 -->
-  <section id="page-vocab" class="page hidden">
-    <h2>詞庫 <span id="vocab-count" class="hint"></span></h2>
-    <input id="vocab-search" placeholder="🔍 中文／English／tag">
-    <div id="vocab-cats" class="chip-row"></div>
-    <div id="vocab-list"></div>
-    <button id="btn-add-term" class="primary wide">＋ 新增詞條</button>
-  </section>
-
-  <!-- 7. 設定 -->
-  <section id="page-settings" class="page hidden">
-    <h2>設定</h2>
-    <div class="panel">
-      <h3>GitHub</h3>
-      <p>用戶：<b id="set-user"></b></p>
-      <p>資料 repo：<b id="set-repo"></b></p>
-      <p>PAT：<span id="set-pat-status"></span></p>
-      <button id="btn-renew-pat" class="ghost wide">換 PAT</button>
-    </div>
-    <div class="panel">
-      <h3>資料</h3>
-      <p id="set-stats" class="hint"></p>
-      <button id="btn-retry-sync" class="ghost wide">重試未同步記錄</button>
-      <button id="btn-export" class="ghost wide">匯出全部 JSON</button>
-    </div>
-    <div class="panel">
-      <h3>安全</h3>
-      <button id="btn-lock" class="ghost wide">🔒 立即上鎖</button>
-    </div>
-  </section>
-
-</main>
-
-<!-- 底部導航（大拇指黃金地帶） -->
-<nav id="bottomnav">
-  <button data-nav="home">🏠<span>主頁</span></button>
-  <button data-nav="db">📚<span>資料庫</span></button>
-  <button id="btn-fab" aria-label="新記錄" onclick="Form.newRecord()">＋</button>
-
-  <button data-nav="vocab">🎼<span>詞庫</span></button>
-  <button data-nav="settings">⚙️<span>設定</span></button>
-</nav>
+<div class="tabs">
+<button id="tab-ver" class="on" onclick="show('ver')">💿 版本</button>
+<button id="tab-work" onclick="show('work')">🎼 作品</button>
+<button id="tab-mus" onclick="show('mus')">🎻 音樂人</button>
+<button id="tab-voc" onclick="show('voc')">📚 詞庫</button>
 </div>
 
-<!-- 全屏底部彈出 sheet（揀詞／新增自訂／加來源，全部用呢個） -->
-<div id="sheet" class="hidden"><div id="sheet-content"></div></div>
+<!-- ═══ 💿 版本 ═══ -->
+<div class="page show" id="page-ver">
+<h2>① 來源</h2>
+<label>YouTube 連結</label><input id="url" placeholder="https://youtu.be/...">
+<button onclick="fetchMeta()">抓取標題／縮圖</button>
+<div id="ytmeta" class="ytmeta hidden"><img id="ytThumb" alt=""><div><b id="ytTitle"></b><p class="note" id="ytChan"></p><button onclick="useTitle()">用標題做版本名</button></div></div>
+<label>平台（自動偵測）</label><input id="platform">
+<label>時長 mm:ss</label><input id="dur">
+<h2>② 錄音資料</h2>
+<label>演奏者（打名＋Enter，會連去音樂人卡）</label><input id="perfInput">
+<div class="chips" id="perfChips"></div>
+<label>演出日期</label><input id="date" type="date">
+<label>樂團／場地</label><input id="venue">
+<label>Label</label><input id="label" placeholder="DG / Sony…">
+<label>片源</label><div class="seg" id="srcSeg"></div>
+<label>性質</label><div class="seg" id="natSeg"></div>
+<h2>③ 作品確認</h2>
+<label>版本名</label><input id="verName">
+<label>作品名（要同作品卡一致）</label><input id="workName">
+<label>作曲家</label><select id="composerSel"></select>
+<label>作曲家自訂（填咗取代上面）</label><input id="composerCus">
+<label>演出範圍</label><div class="seg" id="rangeSeg"></div>
+<label>樂章</label><input id="movs" placeholder="1. 2. 3. 4.">
+<label>對比版本（可空）</label><input id="vcomp">
+<h2>④ 逐段筆記</h2>
+<button onclick="loadYT()">▶️ 載入播放器（落釘用）</button>
+<div id="playerWrap" class="hidden"><div id="ytbox"></div>
+<button onclick="pin()" style="width:100%;margin-top:6px">⏱ 落釘（記低而家時間）</button></div>
+<p class="note">先撳入某行再落釘＝釘嗰行；冇揀就自動加新行。Bilibili 等唔支援內嵌，手打時間都得。</p>
+<div id="notes"></div>
+<button onclick="addNote()">＋ 加一段</button>
+<div class="traylab">術語快選（撳入某行後用）</div><div class="chips" id="trayNote"></div>
+<h2>⑤ 總結</h2>
+<label>狀態</label><div class="seg" id="stSeg"></div>
+<label>總評</label><div class="seg" id="rtSeg"></div>
+<label>速度印象</label><input id="f_tempo">
+<div class="chips" id="trayTempo"></div>
+<label>音色取向</label><input id="f_timbre">
+<label>風格取向</label><input id="f_style">
+<label>一句話總評</label><input id="verdict">
+<h3>✅ 最鍾意</h3><div id="likeRows"></div><button onclick="addRow('likeRows',likes,'邊段／邊樣？')">＋ 加</button>
+<h3>⛔ 唔鍾意</h3><div id="dislikeRows"></div><button onclick="addRow('dislikeRows',dislikes,'邊段／邊樣？')">＋ 加</button>
+<h3>✍️ 對我自己拉奏嘅改動（≤5行）</h3><div id="changeRows"></div><button onclick="addRow('changeRows',changes,'改乜？')">＋ 加一行</button>
+<h3>🧪 練習實驗</h3><div id="expRows"></div><button onclick="addRow('expRows',exps,'試乜？')">＋ 加</button>
+<label>待補</label><input id="todo">
+<button class="go" onclick="genVer()">⚙️ 生成版本卡</button>
+<label>輸出</label><textarea id="outVer" rows="12"></textarea>
+<button style="width:100%" onclick="copyOut('outVer')">📋 Copy</button>
+<button class="clr" onclick="clearCard('ver',this)">🧹 清空呢張卡</button>
+</div>
 
-<!-- toast 短提示 -->
-<div id="toast" class="hidden"></div>
+<!-- ═══ 🎼 作品 ═══ -->
+<div class="page" id="page-work">
+<label>作品名稱</label><input id="w_name">
+<label>暱稱</label><input id="w_nick" placeholder="命運">
+<label>作曲家</label><select id="w_comp"></select>
+<label>作曲家自訂</label><input id="w_compCus">
+<label>作品編號</label><input id="w_cat" placeholder="Op.67 / K.550 / BWV 1007">
+<label>總調性</label><input id="w_key" placeholder="C小調">
+<label>編制</label><input id="w_scoring" placeholder="獨奏小提琴＋樂團">
+<label>樂譜版本</label><input id="w_edition" placeholder="Henle URTEXT">
+<label>時期／樂派（撳揀）</label><div class="chips" id="eraChips"></div>
+<label>創作年份</label><input id="w_year" inputmode="numeric">
+<h3>曲式結構（逐樂章）</h3>
+<div id="movRows"></div>
+<button onclick="addMov()">＋ 加樂章</button>
+<div class="traylab">速度/表情快選（撳入某行後用）</div><div class="chips" id="trayMov"></div>
+<label>創作背景（可跳）</label><textarea id="w_background" rows="3"></textarea>
+<label>題獻／首演</label><input id="w_dedication">
+<label>同類作品（連去另一作品卡）</label><input id="w_similar" placeholder="第六交響曲">
+<textarea id="w_similarnote" rows="2" placeholder="一句講同邊首似、似喺邊"></textarea>
+<h3>🎯 理想版本目標（各一句）</h3>
+<input id="goal_narrative" placeholder="敘事：…">
+<input id="goal_tempo" placeholder="速度：…">
+<input id="goal_timbre" placeholder="音色：…">
+<input id="goal_style" placeholder="風格：…">
+<input id="goal_structure" placeholder="結構焦點：…">
+<h3>📎 資料來源</h3>
+<div id="wsrcRows"></div>
+<button onclick="addSrc('wsrcRows',wsrc)">📎 加來源</button>
+<button class="go" onclick="genWork()">⚙️ 生成作品卡</button>
+<label>輸出</label><textarea id="outWork" rows="12"></textarea>
+<button style="width:100%" onclick="copyOut('outWork')">📋 Copy</button>
+<button class="clr" onclick="clearCard('work',this)">🧹 清空呢張卡</button>
+</div>
 
-<script src="config.js"></script>
-<script src="vocab-seed-1.js"></script>
-<script src="vocab-seed-2.js"></script>
-<script src="api.js"></script>
-<script src="vocab.js"></script>
-<script src="form.js"></script>
-<script src="views.js"></script>
-<script src="main.js"></script>
+<!-- ═══ 🎻 音樂人 ═══ -->
+<div class="page" id="page-mus">
+<label>名稱</label><input id="m_name">
+<label>別名／其他拼寫</label><input id="m_alias" placeholder="Hahn, Hilary">
+<label>類型（撳揀）</label><div class="chips" id="mtypeChips"></div>
+<label>樂器（撳詞庫或打名＋Enter）</label><input id="m_instIn">
+<div class="chips" id="m_chips"></div>
+<label>Roles（撳詞庫或打名＋Enter）</label><input id="m_roleIn">
+<div class="chips" id="r_chips"></div>
+<label>Style-Era</label><input id="m_styleera" placeholder="現代，美國派">
+<label>活躍年代</label>
+<div class="row"><input id="m_from" inputmode="numeric" placeholder="由，例 1990"><input id="m_to" inputmode="numeric" placeholder="迄（在世留空）"></div>
+<label>一句話</label><textarea id="m_oneline" rows="2"></textarea>
+<p class="note">常合作音樂人＋錄音清單：Logseq 自動計，唔使填。</p>
+<h3>📎 資料來源</h3>
+<div id="msrcRows"></div>
+<button onclick="addSrc('msrcRows',msrc)">📎 加來源</button>
+<button class="go" onclick="genMus()">⚙️ 生成音樂人卡</button>
+<label>輸出</label><textarea id="outMus" rows="10"></textarea>
+<button style="width:100%" onclick="copyOut('outMus')">📋 Copy</button>
+<button class="clr" onclick="clearCard('mus',this)">🧹 清空呢張卡</button>
+</div>
+
+<!-- ═══ 📚 詞庫 ═══ -->
+<div class="page" id="page-voc">
+<label>搜尋（中/英/解釋）</label><input id="vq" oninput="renderVocabList()">
+<div class="catbar" id="catbar"></div>
+<div id="vlist"></div>
+<h2>＋ 新增詞條（存呢部機）</h2>
+<label>中文（必要）</label><input id="va_zh">
+<label>英文</label><input id="va_en">
+<label>類別</label><select id="va_cat"></select>
+<label>解釋</label><input id="va_note">
+<button class="go" onclick="addVocab()">＋ 加入詞庫</button>
+</div>
+
+<script>
+window.onerror=function(m){try{document.getElementById("tag").textContent="⚠️ "+m}catch(e){}};
+const BUILTIN=[
+["comp","巴哈","Bach","巴洛克對位法之巔"],["comp","韓德爾","Handel","《彌賽亞》"],["comp","韋瓦第","Vivaldi","《四季》"],
+["comp","海頓","Haydn","交響曲之父"],["comp","莫扎特","Mozart","古典天才"],["comp","貝多芬","Beethoven","樂聖"],
+["comp","舒伯特","Schubert","藝術歌曲之王"],["comp","孟德爾頌","Mendelssohn","重推巴哈"],["comp","舒曼","Schumann","文學浪漫派"],
+["comp","蕭邦","Chopin","鋼琴詩人"],["comp","李斯特","Liszt","炫技之王"],["comp","布拉姆斯","Brahms","古典形式浪漫心"],
+["comp","柴可夫斯基","Tchaikovsky","俄派旋律"],["comp","德伏扎克","Dvorak","波希米亞"],["comp","德布西","Debussy","印象派"],
+["comp","拉威爾","Ravel","配器魔術師"],["comp","馬勒","Mahler","千人交響曲"],["comp","布魯克納","Bruckner","大教堂交響曲"],
+["comp","理察·史特勞斯","R. Strauss","音詩大師"],["comp","拉赫曼尼諾夫","Rachmaninoff","晚期浪漫鋼琴"],
+["comp","蕭士塔高維奇","Shostakovich","20世紀交響曲"],["comp","史特拉汶斯基","Stravinsky","《春之祭》"],
+["inst","小提琴","Violin","弦樂高音"],["inst","中提琴","Viola","弦樂中音"],["inst","大提琴","Cello","弦樂低音"],
+["inst","低音提琴","Double bass","最低弦樂"],["inst","鋼琴","Piano","鍵盤擊弦"],["inst","管風琴","Organ","教堂鍵盤"],
+["inst","大鍵琴","Harpsichord","巴洛克鍵盤"],["inst","長笛","Flute","木管高音"],["inst","短笛","Piccolo","木管最高"],
+["inst","雙簧管","Oboe","木管定音準"],["inst","英國號","English horn","雙簧低聲"],["inst","單簧管","Clarinet","木管靈活"],
+["inst","低音單簧管","Bass clarinet","木管低"],["inst","巴松管","Bassoon","木管低音"],["inst","薩克管","Saxophone","爵士木管"],
+["inst","小號","Trumpet","銅管高音"],["inst","圓號","Horn","銅管中音"],["inst","長號","Trombone","滑管"],
+["inst","大號","Tuba","銅管最低"],["inst","豎琴","Harp","47弦"],["inst","定音鼓","Timpani","可調音鼓"],
+["inst","敲擊樂","Percussion","敲擊總稱"],["inst","結他","Guitar","六弦"],["inst","豎笛","Recorder","直吹"],
+["role","指揮","Conductor","全團領袖"],["role","獨奏","Soloist","單人領奏"],["role","女高音","Soprano","最高女聲"],
+["role","女中音","Mezzo","中音女聲"],["role","男高音","Tenor","高男聲"],["role","男中音","Baritone","中男聲"],
+["role","男低音","Bass","低男聲"],["role","合唱團","Choir","群唱"],["role","樂團","Orchestra","全團"],
+["role","室內樂團","Chamber orch","小樂團"],
+["form","交響曲","Symphony","四大樂章"],["form","協奏曲","Concerto","獨奏對樂團"],["form","室內樂","Chamber","小型合奏"],
+["form","奏鳴曲","Sonata","獨奏/二重"],["form","組曲","Suite","舞曲集"],["form","變奏曲","Variations","主題變化"],
+["form","夜曲","Nocturne","夜鋼琴"],["form","練習曲","Etude","技巧練習"],["form","前奏曲","Prelude","短開場"],
+["form","敘事曲","Ballade","敘事性"],["form","詼諧曲","Scherzo","快而諧"],["form","序曲","Overture","開場曲"],
+["form","交響詩","Sym. poem","標題單樂章"],["form","歌劇","Opera","戲劇+音樂"],["form","藝術歌曲","Lied","詩+鋼琴"],
+["form","安魂曲","Requiem","亡者彌撒"],["form","彌撒曲","Mass","宗教合唱"],["form","清唱劇","Cantata","聲樂套曲"],
+["form","四重奏","Quartet","四件"],["form","三重奏","Trio","三件"],["form","五重奏","Quintet","五件"],
+["form","圓舞曲","Waltz","三拍舞曲"],["form","隨想曲","Capriccio","自由"],["form","幻想曲","Fantasia","即興風"],
+["form","托卡塔","Toccata","觸技"],["form","賦格","Fugue","追逐對位"],
+["tempo","Grave 莊板","Grave","極慢嚴肅"],["tempo","Largo 廣板","Largo","很慢寬廣"],["tempo","Adagio 慢板","Adagio","從容"],
+["tempo","Andante 行板","Andante","步行"],["tempo","Moderato 中板","Moderato","中等"],["tempo","Allegretto 稍快","Allegretto","輕快"],
+["tempo","Allegro 快板","Allegro","明亮快"],["tempo","Vivace 活潑","Vivace","甚快"],["tempo","Presto 急板","Presto","很快"],
+["dyn","pp 很弱","pianissimo","極輕"],["dyn","p 弱","piano","輕"],["dyn","mp 中弱","mezzo-p","稍輕"],
+["dyn","mf 中強","mezzo-f","稍強"],["dyn","f 強","forte","大聲"],["dyn","ff 很強","fortissimo","極大"],
+["dyn","cresc. 漸強","crescendo","越嚟越大"],["dyn","dim. 漸弱","diminuendo","越嚟越細"],
+["expr","cantabile 如歌","cantabile","似唱歌"],["expr","dolce 溫柔","dolce","甜美"],["expr","espress. 有表情","espressivo","重情感"],
+["expr","agitato 激動","agitato","不安"],["expr","maestoso 莊嚴","maestoso","威嚴"],["expr","con brio 富生氣","con brio","有火"],
+["expr","leggiero 輕巧","leggiero","輕盈"],["expr","legato 圓滑","legato","連住"],["expr","staccato 斷奏","staccato","分開"],
+["expr","rit. 漸慢","ritardando","收慢"],["expr","a tempo 回原速","a tempo","返原速"],["expr","sostenuto 持續","sostenuto","拉長"],
+["expr","sotto voce 柔聲","sotto voce","壓低聲"],["expr","cadenza 華彩","cadenza","獨奏自由段"],
+["tech","主題追蹤","Thematic","主題幾時出返"],["tech","動機識別","Motif","認短樂句"],
+["tech","配器觀察","Orchestration","邊件樂器唱緊"],["tech","曲式分析","Form","ABA/奏鳴曲式"],
+["tech","和聲聆聽","Harmony","大細調"],["tech","對比聆聽","Comparative","兩版本齊聽"],
+["tech","總譜閱讀","Score","跟譜聽"],["tech","樂段標記","Sections","分段記低"],
+["tech","聲部平衡","Balance","各聲部大細"],["tech","節奏型","Rhythm","認節奏動機"],
+["tech","版本比較","Discography","錄音比較"],["tech","落釘","Timestamp","時間跳轉"]
+];
+const CATNAMES={comp:"作曲家",inst:"樂器",role:"角色",form:"曲式",tempo:"速度",dyn:"力度",expr:"表情",tech:"學習技術"};
+const ERAS=["巴洛克","古典","浪漫","印象派","現代","當代"];
+const MTYPES=["獨奏家","指揮","室內樂","歌唱家","樂團","合唱團","伴奏","學者/教育家"];
+const $=id=>document.getElementById(id);
+let SEEDS=[];const V=()=>SEEDS.length?SEEDS.concat(loadCustom()):BUILTIN.concat(loadCustom());window.__setSeeds=function(l){SEEDS=l;renderAll()};.
+let perf=[],mroles=[],notes=[],movs=[],likes=[],dislikes=[],changes=[],exps=[],wsrc=[],msrc=[],wera=[],mtype=[],wform=[],minst=[],S={},LF={type:null,i:0},VCAT="",ytPlayer=null;
+
+function toast(m){$("tag").textContent=m;setTimeout(()=>{if($("tag").textContent===m)$("tag").textContent=""},1500)}
+function show(t){["ver","work","mus","voc"].forEach(x=>{$("page-"+x).classList.toggle("show",x===t);$("tab-"+x).classList.toggle("on",x===t)})}
+
+const segDefs={srcSeg:["官方","粉絲拍攝","電視廣播"],rangeSeg:["全部","選段"],natSeg:["現場","錄音室","彩排","廣播"],stSeg:["🚧聽緊","⏳待補","✅完成"],rtSeg:["⭐","⭐⭐","⭐⭐⭐","⭐⭐⭐⭐","⭐⭐⭐⭐⭐"]};
+Object.keys(segDefs).forEach(k=>segDefs[k].forEach(v=>{const b=document.createElement("button");b.textContent=v;b.onclick=()=>{[...$(k).children].forEach(x=>x.classList.remove("on"));b.classList.add("on");S[k]=v;save()};$(k).appendChild(b)}));
+
+function drawList(box,arr){$(box).innerHTML="";arr.forEach((p,i)=>{const b=document.createElement("button");b.className="chip on";b.textContent=p+" ×";b.onclick=()=>{arr.splice(i,1);drawList(box,arr);save()};$(box).appendChild(b)})}
+function hookAdd(inp,arr,box){$(inp).addEventListener("keydown",e=>{if(e.key===","||e.key==="Enter"){const n=$(inp).value.replace(/,$/,"").trim();if(n&&!arr.includes(n)){arr.push(n);drawList(box,arr);save()}$(inp).value="";e.preventDefault()}})}
+hookAdd("perfInput",perf,"perfChips");hookAdd("m_instIn",minst,"m_chips");hookAdd("m_roleIn",mroles,"r_chips");
+
+function drawRows(boxId,arr,ph){$(boxId).innerHTML="";arr.forEach((r,i)=>{const d=document.createElement("div");d.className="row";
+const x=document.createElement("input");x.placeholder=ph;x.value=r.x||"";
+const del=document.createElement("button");del.textContent="✕";
+x.oninput=()=>{r.x=x.value;save()};del.onclick=()=>{arr.splice(i,1);drawRows(boxId,arr);save()};
+d.appendChild(x);d.appendChild(del);$(boxId).appendChild(d)})}
+function addRow(boxId,arr,ph){arr.push({x:""});drawRows(boxId,arr,ph);save()}
+function drawSrc(boxId,arr){$(boxId).innerHTML="";arr.forEach((r,i)=>{const d=document.createElement("div");d.className="row";
+const a=document.createElement("input");a.placeholder="名／描述";a.value=r.d||"";
+const b=document.createElement("input");b.placeholder="https://…";b.value=r.u||"";
+const del=document.createElement("button");del.textContent="✕";
+a.oninput=()=>{r.d=a.value;save()};b.oninput=()=>{r.u=b.value;save()};del.onclick=()=>{arr.splice(i,1);drawSrc(boxId,arr);save()};
+d.appendChild(a);d.appendChild(b);d.appendChild(del);$(boxId).appendChild(d)})}
+function addSrc(boxId,arr){arr.push({d:"",u:""});drawSrc(boxId,arr);save()}
+
+function redrawNotes(){$("notes").innerHTML="";notes.forEach((n,i)=>{if(!n.del)buildNote(i)})}
+function buildNote(i){const n=notes[i];const d=document.createElement("div");d.className="row";
+const t=document.createElement("input");t.className="tm";t.placeholder="mm:ss";t.value=n.t||"";
+const x=document.createElement("textarea");x.rows=2;x.placeholder="段落／觀察";x.value=n.txt||"";
+const del=document.createElement("button");del.textContent="✕";
+t.oninput=()=>{n.t=t.value;save()};x.onfocus=()=>{LF={type:"note",i:i}};x.oninput=()=>{n.txt=x.value;save()};
+del.onclick=()=>{n.del=1;redrawNotes();save()};
+d.appendChild(t);d.appendChild(x);d.appendChild(del);$("notes").appendChild(d)}
+function addNote(){notes.push({t:"",txt:""});buildNote(notes.length-1)}
+
+const ROMAN=["I.","II.","III.","IV.","V.","VI.","VII.","VIII."];
+function redrawMovs(){$("movRows").innerHTML="";movs.forEach((m,i)=>buildMov(i))}
+function buildMov(i){const m=movs[i];const d=document.createElement("div");d.className="row";
+const l=document.createElement("input");l.className="tm";l.value=m.l;l.oninput=()=>{m.l=l.value;save()};
+const x=document.createElement("input");x.placeholder="速度＋描述";x.value=m.txt;
+const del=document.createElement("button");del.textContent="✕";
+x.onfocus=()=>{LF={type:"mov",i:i}};x.oninput=()=>{m.txt=x.value;save()};
+del.onclick=()=>{movs.splice(i,1);redrawMovs();save()};
+d.appendChild(l);d.appendChild(x);d.appendChild(del);$("movRows").appendChild(d)}
+function addMov(){movs.push({l:ROMAN[movs.length]||"",txt:""});redrawMovs();save()}
+
+function tapTerm(zh){if(LF.type==="note"&&notes[LF.i]&&!notes[LF.i].del){notes[LF.i].txt=(notes[LF.i].txt||"")+zh+" ";redrawNotes();save()}
+else if(LF.type==="mov"&&movs[LF.i]){movs[LF.i].txt=(movs[LF.i].txt||"")+zh+" ";redrawMovs();save()}
+else toast("先撳入某行，再撳術語")}
+function mkTray(box,cats,fn){$(box).innerHTML="";cats.forEach(c=>{const lab=document.createElement("div");lab.className="traylab";lab.textContent=CATNAMES[c];$(box).appendChild(lab);
+V().filter(v=>v[0]===c).forEach(v=>{const b=document.createElement("button");b.className="chip";b.textContent=v[1];b.title=v[2]+" — "+v[3];b.onclick=()=>fn?fn(v[1]):tapTerm(v[1]);$(box).appendChild(b)})})}
+
+function fillSelect(id){const cur=$(id).value;$(id).innerHTML="";V().filter(v=>v[0]==="comp").forEach(v=>{const o=document.createElement("option");o.textContent=v[1];$(id).appendChild(o)});if(cur)$(id).value=cur}
+function mkToggle(boxId,arr){$(boxId).innerHTML="";V().concat([["","",,""]]).length&&0;const pool=boxId==="eraChips"?ERAS:boxId==="mtypeChips"?MTYPES:[];pool.forEach(t=>{const b=document.createElement("button");b.className="chip"+(arr.includes(t)?" on":"");b.textContent=t;b.onclick=()=>{const i=arr.indexOf(t);if(i<0)arr.push(t);else arr.splice(i,1);b.classList.toggle("on");save()};$(boxId).appendChild(b)})}
+
+function renderAll(){fillSelect("composerSel");fillSelect("w_comp");
+mkTray("trayNote",["tempo","dyn","expr","tech"]);mkTray("trayMov",["tempo","expr"]);
+mkTray("trayTempo",["tempo"],zh=>{$("f_tempo").value=($("f_tempo").value+" "+zh).trim();save()});
+const wf=$("wformChips")||null;
+const wt=$("eraChips");/*era*/ mkToggle("eraChips",wera);mkToggle("mtypeChips",mtype);
+const fv=$("formChips");/*none*/
+const mv=$("m_vocab");/*none*/
+renderVocabList();renderCats()}
+
+function renderCats(){const cb=$("catbar");cb.innerHTML="";["全部"].concat(Object.keys(CATNAMES).map(k=>CATNAMES[k])).forEach(n=>{const b=document.createElement("button");b.textContent=n;if((VCAT===""&&n==="全部")||CATNAMES[VCAT]===n)b.classList.add("on");
+b.onclick=()=>{VCAT=n==="全部"?"":Object.keys(CATNAMES).find(k=>CATNAMES[k]===n)||"";renderCats();renderVocabList()};cb.appendChild(b)})}
+function renderVocabList(){const q=($("vq").value||"").toLowerCase();const d=$("vlist");d.innerHTML="";
+V().filter(v=>(!VCAT||v[0]===VCAT)&&(!q||(v[1]+v[2]+v[3]).toLowerCase().includes(q))).forEach(v=>{
+const r=document.createElement("div");r.className="vrow";
+r.innerHTML="<b>"+v[1]+"</b> <span class='en'>"+v[2]+"</span><span class='vn'>"+v[3]+"</span>";
+if(v[4]){const x=document.createElement("button");x.className="del";x.textContent="🗑";x.onclick=()=>delVocab(v[4]);r.appendChild(x)}
+d.appendChild(r)})}
+function loadCustom(){try{return JSON.parse(localStorage.getItem("musvocab")||"[]")}catch(e){return[]}}
+function addVocab(){const zh=$("va_zh").value.trim();
+if(!zh){toast("打咗中文名先");return}
+const c=loadCustom();c.push([$("va_cat").value,zh,$("va_en").value.trim(),$("va_note").value.trim(),Date.now()]);
+try{localStorage.setItem("musvocab",JSON.stringify(c))}catch(e){}
+["va_zh","va_en","va_note"].forEach(i=>$(i).value="");renderAll();toast("已加 ✓")}
+function delVocab(uid){const c=loadCustom().filter(v=>v[4]!==uid);try{localStorage.setItem("musvocab",JSON.stringify(c))}catch(e){};renderAll()}
+$("va_cat").innerHTML=Object.keys(CATNAMES).map(k=>"<option value='"+k+"'>"+CATNAMES[k]+"</option>").join("");
+
+// ===== YouTube =====
+function vid(u){const m=(u||"").match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:null}
+async function fetchMeta(){const id=vid($("url").value);if(!id){toast("認唔到 YouTube video id");return}
+try{const r=await fetch("https://www.youtube.com/oembed?format=json&url="+encodeURIComponent("https://www.youtube.com/watch?v="+id)) ;
+const j=await r.json();$("ytThumb").src=j.thumbnail_url;$("ytTitle").textContent=j.title;$("ytChan").textContent=j.author_name;$("ytmeta").classList.remove("hidden");toast("抓到 ✓")}catch(e){toast("抓唔到（手動填都得）")}}
+function useTitle(){const t=$("ytTitle").textContent;if(t&&!$("verName").value){$("verName").value=t;save();toast("已套用")}}
+function autoDetect(){const u=$("url").value;const m=[[ /youtu/,"YouTube"],[/bilibili/,"Bilibili"],[/nico/,"Niconico"],[/vimeo/,"Vimeo"]];for(const[re,p]of m){if(re.test(u)){$("platform").value=p;return}}if(u)$("platform").value="其他"}$("url").addEventListener("input",()=>{autoDetect();save()});
+function loadYT(){const id=vid($("url").value);if(!id){toast("先填 YouTube 連結");return}$("playerWrap").classList.remove("hidden");
+if(ytPlayer){ytPlayer.loadVideoById(id);return}
+window.onYouTubeIframeAPIReady=function(){ytPlayer=new YT.Player("ytbox",{videoId:id,playerVars:{rel:0}})};
+const s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";document.body.appendChild(s)}
+function pin(){if(!ytPlayer||!ytPlayer.getCurrentTime){toast("播放器未ready");return}
+const t=Math.floor(ytPlayer.getCurrentTime());const lab=Math.floor(t/60)+":"+("0"+t%60).slice(-2);
+if(LF.type!=="note"||!notes[LF.i]||notes[LF.i].del){addNote();LF={type:"note",i:notes.length-1}}
+notes[LF.i].t=lab;redrawNotes();save();toast("落釘 "+lab)}
+
+function toSec(s){const m=s.match(/^(\d+):(\d{1,2})$/);return m?+m[1]*60+ +m[2]:null}
+
+// ===== 生成 =====
+function genVer(){const v=id=>$(id).value.trim();
+const name=v("verName")||v("workName")||"未命名版本";
+const comp=v("composerCus")||$("composerSel").value;
+let o="- [[版本/"+name+"]]\n";
+[["平台",v("platform")],["連結",v("url")],["時長",v("dur")],["演出日期",v("date")],["樂團/場地",v("venue")],["Label",v("label")],["片源",S.srcSeg||""],["性質",S.natSeg||""],["狀態",S.stSeg||"🚧聽緊"],["評分",S.rtSeg||""],["速度印象",v("f_tempo")],["音色取向",v("f_timbre")],["風格取向",v("f_style")],["樂章",v("movs")]].forEach(p=>{if(p[1])o+="  "+p[0]+":: "+p[1]+"\n"});
+if(v("workName"))o+="  作品:: [[作品/"+v("workName")+"]]\n";
+if(comp)o+="  作曲家:: [["+comp+"]]\n";
+if(perf.length)o+="  演奏者:: "+perf.map(p=>"[[音樂人/"+p+"]]").join(", ")+"\n";
+if(v("vcomp"))o+="  對比版本:: [[版本/"+v("vcomp")+"]]\n";
+if(v("verdict"))o+="  一句話總評:: "+v("verdict")+"\n";
+o+="\t- ## ④ 逐段筆記\n";
+let any=false;
+notes.forEach(n=>{if(n.del||(!n.t&&!n.txt))return;any=true;const s=toSec(n.t);const j=(s!==null&&v("url"))?v("url")+"?t="+s+"s":"";
+o+="\t  "+n.t+" "+n.txt+(j?" — 跳轉："+j:"")+"\n"});
+if(!any)o+="\t  0:00 開始 —\n";
+o+="\t- ## ⑤ 總結\n";
+likes.forEach(r=>{if(r.x)o+="\t  ✅ "+r.x+"\n"});
+dislikes.forEach(r=>{if(r.x)o+="\t  ⛔ "+r.x+"\n"});
+changes.forEach(r=>{if(r.x)o+="\t  ✍️ "+r.x+"\n"});
+exps.forEach(r=>{if(r.x)o+="\t  🧪 "+r.x+"\n"});
+o+="\t  待補："+v("todo")+"\n";
+$("outVer").value=o;save();toast("版本卡生成 ✓");$("outVer").scrollIntoView({behavior:"smooth"})}
+
+function genWork(){const v=id=>$(id).value.trim();
+const name=v("w_name")||v("w_nick")||"未命名作品";
+const comp=v("w_compCus")||$("w_comp").value;
+let o="- [[作品/"+name+"]]\n";
+[["暱稱",v("w_nick")],["目錄編號",v("w_cat")],["調性",v("w_key")],["編制",v("w_scoring")],["樂譜版本",v("w_edition")],["創作年份",v("w_year")]].forEach(p=>{if(p[1])o+="  "+p[0]+":: "+p[1]+"\n"});
+if(comp)o+="  作曲家:: [["+comp+"]]\n";
+if(wera.length)o+="  時期/樂派:: "+wera.join(", ")+"\n";
+if(v("w_background"))o+="  創作背景:: "+v("w_background")+"\n";
+if(v("w_dedication"))o+="  題獻/首演:: "+v("w_dedication")+"\n";
+if(v("w_similar"))o+="  同類作品:: [[作品/"+v("w_similar")+"]]"+(v("w_similarnote")?" — "+v("w_similarnote"):"")+"\n";
+o+="\t- 🎯 理想版本目標\n";
+[["敘事","goal_narrative"],["速度","goal_tempo"],["音色","goal_timbre"],["風格","goal_style"],["結構焦點","goal_structure"]].forEach(g=>{if(v(g[1]))o+="\t  "+g[0]+"："+v(g[1])+"\n"});
+o+="\t- 樂章明細\n";
+const rows=movs.filter(m=>m.l||m.txt);
+if(rows.length)rows.forEach(m=>o+="\t  "+m.l+" "+m.txt+"\n");else o+="\t  I. \n";
+wsrc.forEach(r=>{if(r.d||r.u)o+="  資料來源:: "+r.d+(r.u?" — "+r.u:"")+"\n"});
+$("outWork").value=o;save();toast("作品卡生成 ✓");$("outWork").scrollIntoView({behavior:"smooth"})}
+
+function genMus(){const v=id=>$(id).value.trim();
+const name=v("m_name")||"未命名音樂人";
+let o="- [[音樂人/"+name+"]]\n";
+[["別名",v("m_alias")],["Style-Era",v("m_styleera")]].forEach(p=>{if(p[1])o+="  "+p[0]+":: "+p[1]+"\n"});
+if(mtype.length)o+="  類型:: "+mtype.join(", ")+"\n";
+if(minst.length)o+="  樂器:: "+minst.join(", ")+"\n";
+if(mroles.length)o+="  Roles:: "+mroles.join(", ")+"\n";
+if(v("m_from"))o+="  活躍年代:: "+v("m_from")+"–"+(v("m_to")||"")+"\n";
+if(v("m_oneline"))o+="  一句話:: "+v("m_oneline")+"\n";
+msrc.forEach(r=>{if(r.d||r.u)o+="  資料來源:: "+r.d+(r.u?" — "+r.u:"")+"\n"});
+$("outMus").value=o;save();toast("音樂人卡生成 ✓");$("outMus").scrollIntoView({behavior:"smooth"})}
+
+function copyOut(id){const t=$(id);t.focus();t.select();
+try{t.setSelectionRange(0,999999)}catch(e){}
+let ok=false;
+try{if(navigator.clipboard){navigator.clipboard.writeText(t.value);ok=true}}catch(e){}
+if(!ok){try{ok=document.execCommand("copy")}catch(e){}}
+toast(ok?"已 copy ✓（去 Logseq 貼）":"自動 copy 唔到——長撳輸出格→全選→拷貝")}
+
+let armT={};
+function clearCard(k,btn){
+if(btn.dataset.arm==="1"){doClear(k);btn.dataset.arm="";btn.textContent=btn.dataset.orig;clearTimeout(armT[k]);toast("已清空")}
+else{btn.dataset.orig=btn.textContent;btn.dataset.arm="1";btn.textContent="⚠️ 再撳一次確認清空";
+armT[k]=setTimeout(()=>{btn.dataset.arm="";btn.textContent=btn.dataset.orig},2500)}}
+function doClear(k){
+if(k==="ver"){["url","platform","dur","date","venue","label","verName","workName","composerCus","movs","vcomp","verdict","todo","f_tempo","f_timbre","f_style"].forEach(id=>$(id).value="");
+perf=[];drawList("perfChips",perf);notes=[{t:"",txt:""}];redrawNotes();
+likes=[];drawRows("likeRows",likes,"");dislikes=[];drawRows("dislikeRows",dislikes,"");
+changes=[];drawRows("changeRows",changes,"");exps=[];drawRows("expRows",exps,"");
+$("ytmeta").classList.add("hidden");
+["srcSeg","rangeSeg","natSeg","stSeg","rtSeg"].forEach(s=>{[...$(s).children].forEach(b=>b.classList.remove("on"));delete S[s]})}
+if(k==="work"){["w_name","w_nick","w_compCus","w_cat","w_key","w_scoring","w_edition","w_year","w_background","w_dedication","w_similar","w_similarnote","goal_narrative","goal_tempo","goal_timbre","goal_style","goal_structure"].forEach(id=>$(id).value="");
+wera=[];renderAll();movs=[{l:"I.",txt:""}];redrawMovs();wsrc=[];drawSrc("wsrcRows",wsrc)}
+if(k==="mus"){["m_name","m_alias","m_instIn","m_roleIn","m_styleera","m_from","m_to","m_oneline"].forEach(id=>$(id).value="");
+minst=[];drawList("m_chips",minst);mroles=[];drawList("r_chips",mroles);mtype=[];renderAll();msrc=[];drawSrc("msrcRows",msrc)}
+save()}
+
+  const FIELDS=["platform","dur","date","venue","label","verName","workName","composerSel","composerCus","movs","vcomp","verdict","todo","f_tempo","f_timbre","f_style","w_name","w_nick","w_comp","w_compCus","w_cat","w_key","w_scoring","w_edition","w_year","w_background","w_dedication","w_similar","w_similarnote","goal_narrative","goal_tempo","goal_timbre","goal_style","goal_structure","m_name","m_alias","m_styleera","m_from","m_to","m_oneline"];
+FIELDS.forEach(id=>$(id).addEventListener("input",save));
+function save(){const f={};FIELDS.forEach(id=>f[id]=$(id).value);f.url=$("url").value;
+try{localStorage.setItem("musgen4",JSON.stringify({f:f,perf:perf,mroles:mroles,notes:notes,movs:movs,likes:likes,dislikes:dislikes,changes:changes,exps:exps,wsrc:wsrc,msrc:msrc,wera:wera,mtype:mtype,s:S}))}catch(e){}}
+function load(){try{const d=JSON.parse(localStorage.getItem("musgen4"));if(!d)return;
+Object.keys(d.f||{}).forEach(id=>{if($(id))$(id).value=d.f[id]});
+perf=d.perf||[];drawList("perfChips",perf);
+mroles=d.mroles||[];drawList("r_chips",mroles);
+notes=d.notes&&d.notes.length?d.notes:[{t:"",txt:""}];redrawNotes();
+movs=d.movs&&d.movs.length?d.movs:[{l:"I.",txt:""}];redrawMovs();
+likes=d.likes||[];drawRows("likeRows",likes,"最鍾意邊段？");
+dislikes=d.dislikes||[];drawRows("dislikeRows",dislikes,"唔鍾意邊段？");
+changes=d.changes||[];drawRows("changeRows",changes,"改乜？");
+exps=d.exps||[];drawRows("expRows",exps,"試乜？");
+wsrc=d.wsrc||[];drawSrc("wsrcRows",wsrc);
+msrc=d.msrc||[];drawSrc("msrcRows",msrc);
+wera=d.wera||[];mtype=d.mtype||[];
+S=d.s||{};Object.keys(S).forEach(k=>{[...$(k).children].forEach(b=>{if(b.textContent===S[k])b.classList.add("on")})});
+autoDetect()}catch(e){}}
+
+  // ===== 駁返 repo 入面嘅 vocab 檔 =====
+(async function(){
+function normSeed(e){try{
+if(typeof e==="string"){const zh=/[\u4e00-\u9fff]/.test(e);return{cat:"",zh:zh?e:"",en:zh?"":e,note:""}}
+if(Array.isArray(e)){const s=e.map(x=>typeof x==="string"?x.trim():"").filter(Boolean);
+let cat="",zh="",en="",note="";
+if(s.length&&!/[\u4e00-\u9fff]/.test(s[0])&&/^[A-Za-z][\w -]{0,12}$/.test(s[0]))cat=s.shift();
+s.forEach(x=>{if(/[\u4e00-\u9fff]/.test(x)){if(!zh)zh=x;else if(!note)note=x}
+else if(/^[A-Za-z]/.test(x)){if(!en)en=x;else if(!note)note=x}
+else if(!note)note=x});
+return{cat:cat,zh:zh,en:en,note:note}}
+if(e&&typeof e==="object"){const g=ks=>{for(const k of ks){const v=e[k];if(v!=null&&String(v).trim()!=="")return String(v).trim()}return ""};
+return{cat:g(["cat","category","type","group","cls","field","tag","tags"]),
+zh:g(["zh","zh_hk","zhHK","zh_tw","zhTW","term_zh","termZh","chinese","zh_name","name_zh","c","term","name","word"]),
+en:g(["en","english","en_name","english_name","eng","e","term_en","name_en","latin"]),
+note:g(["note","desc","description","explain","explanation","meaning","definition","def","memo","tip","summary"])}}}catch(err){}return null}
+const FILES=["vocab-seed-1.js","vocab-seed-2.js","vocab.js"];
+const names=[];
+for(const f of FILES){
+await new Promise(res=>{const s=document.createElement("script");s.src=f;s.onload=()=>res();s.onerror=()=>res();document.body.appendChild(s)});
+try{const t=await (await fetch(f)).text();const re=/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*\[/g;let m;
+while((m=re.exec(t)))if(names.indexOf(m[1])<0)names.push(m[1])}catch(e){}
+}
+["VOCAB","VOCAB_SEED","VOCAB_SEEDS","VOCAB_LIST","TERMS","VOCAB_ALL"].forEach(n=>{if(names.indexOf(n)<0)names.push(n)});
+const got=[];
+names.forEach(n=>{let v=null;try{v=new Function("try{return typeof "+n+"!=='undefined'?"+n+":null}catch(e){return null}")()}catch(e){}
+if(Array.isArray(v)&&v.length>=20)got.push({name:n,arr:v})});
+Object.keys(window).forEach(k=>{try{const v=window[k];
+if(Array.isArray(v)&&v.length>=20&&!got.some(g=>g.arr===v)){const s=normSeed(v[0]);if(s&&(s.zh||s.en))got.push({name:k,arr:v})}}catch(e){}});
+if(!got.length){toast("⚠️ 搵唔到詞庫——抄 vocab-seed-1.js 第一行俾我");return}
+const CATMAP={composer:"comp",composers:"comp","作曲家":"comp",instrument:"inst",instruments:"inst","樂器":"inst",role:"role",roles:"role","角色":"role",form:"form",forms:"form",genre:"form","曲式":"form","類型":"form",tempo:"tempo","速度":"tempo",dynamic:"dyn",dynamics:"dyn","力度":"dyn",expression:"expr",expressions:"expr",articulation:"expr","表情":"expr",technique:"tech",techniques:"tech",practice:"tech",listening:"tech","學習技術":"tech","聆聽技術":"tech"};
+function catKey(c){c=(c||"").toString().trim().toLowerCase();const k=CATMAP[c]||c||"other";if(!CATNAMES[k])CATNAMES[k]=k;return k}
+const seen={},list=[];
+got.forEach(g=>{let n=0;g.arr.forEach(e=>{const t=normSeed(e);if(!t||(!t.zh&&!t.en))return;const key=t.zh+"|"+t.en;if(seen[key])return;seen[key]=1;list.push([catKey(t.cat),t.zh,t.en,t.note||""]);n++});
+if(n)toast("駁通 "+g.name+"："+n+" 條")});
+if(list.length>=50){window.__setSeeds(list);setTimeout(()=>toast("詞庫駁通 ✓ 共 "+list.length+" 條"),800)}
+else toast("⚠️ 搵到但太少("+list.length+")——screenshot vocab.js 開頭俾我");
+})();
+  
+renderAll();load();
+</script>
 </body>
-        </html>
-                              
+</html>
