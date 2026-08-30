@@ -1,1 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🎵 音樂記錄生成器 v6 → Logseq</title>
+<style>
+body{font-family:system-ui;max-width:680px;margin:0 auto;padding:12px;background:#fafafa;color:#222}
+h1{font-size:20px}h2{margin:14px 0 4px;font-size:16px}h3{margin:12px 0 4px;font-size:14px}
+label{font-size:13px;color:#555;display:block;margin:8px 0 2px}
+input,select,textarea{width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:16px;background:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{padding:6px 10px;border-radius:999px;background:#e8e8ff;border:none;font-size:14px}
+.chip.on{background:#5b5bd6;color:#fff}
+button{font-size:15px;padding:9px 12px;border-radius:8px;border:1px solid #ccc;background:#fff}
+.go{background:#5b5bd6;color:#fff;border:none;width:100%;font-size:17px;padding:13px;margin-top:12px}
+.clr{font-size:13px;color:#a33;margin-top:8px;width:100%}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #ccc;border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0}.seg .on{background:#5b5bd6;color:#fff}
+.note{font-size:12px;color:#888}.row{display:flex;gap:6px;margin:4px 0;align-items:flex-start}
+.row input,.row textarea{flex:1}.row .tm{max-width:85px;flex:none}
+.saved{color:#2a7;font-size:13px}
+#err{position:fixed;top:0;left:0;right:0;background:#b00;color:#fff;font-size:12px;padding:6px 10px;z-index:99;display:none;white-space:pre-wrap}
+.tabs{display:flex;gap:5px;margin:10px 0;flex-wrap:wrap}
+.tabs button{flex:1;min-width:80px}.tabs .on{background:#5b5bd6;color:#fff;border-color:#5b5bd6}
+.page{display:none}.page.show{display:block}
+.traylab{font-size:12px;color:#888;margin:6px 0 2px}
+.vrow{border-bottom:1px solid #eee;padding:8px 2px;font-size:14px}
+.vrow b{font-size:15px}.vrow .en{color:#5b5bd6}
+.vrow .vn{display:block;color:#777;font-size:13px;margin-top:2px}
+.vrow .del{float:right;border:none;color:#a33;font-size:13px}
+.catbar{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.catbar button{font-size:13px;padding:6px 9px}.catbar .on{background:#333;color:#fff}
+#playerWrap{margin:8px 0}#ytbox{width:100%;aspect-ratio:16/9;border:0;border-radius:8px}
+.ytmeta{display:flex;gap:8px;align-items:center;margin:8px 0}
+.ytmeta img{width:80px;border-radius:6px}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<h1>🎵 音樂記錄生成器 <small style="color:#999">v6</small> <span class="saved" id="tag"></span></h1>
+<p class="note">貼 link → 自動抓+拆 → 補筆記 → 生成 → 貼入 Logseq。詞庫直讀 repo 兩個 seed 檔。</p>
 
+<div class="tabs">
+<button id="tab-ver" class="on" onclick="show('ver')">💿 版本</button>
+<button id="tab-work" onclick="show('work')">🎼 作品</button>
+<button id="tab-mus" onclick="show('mus')">🎻 音樂人</button>
+<button id="tab-voc" onclick="show('voc')">📚 詞庫</button>
+</div>
+
+<div class="page show" id="page-ver">
+<h2>① 來源</h2>
+<label>YouTube 連結（貼完自動抓＋拆解）</label><input id="url" placeholder="https://youtu.be/...">
+<button onclick="fetchMeta()">🔄 再抓一次</button>
+<div id="ytmeta" class="ytmeta" style="display:none"><img id="ytThumb" alt=""><div><b id="ytTitle"></b><p class="note" id="ytChan"></p><button onclick="useTitle()">用標題做版本名</button></div></div>
+<p class="note">自動填：演奏者/作曲家/作品名/暱稱/編號/調性/樂章/現場——填錯直接改返。</p>
+<label>平台（自動偵測）</label><input id="platform">
+<label>時長 mm:ss（oEmbed 給不到，自己填）</label><input id="dur">
+<h2>② 錄音資料</h2>
+<label>演奏者（打名＋Enter）</label><input id="perfInput">
+<div class="chips" id="perfChips"></div>
+<label>演出日期</label><input id="date" type="date">
+<label>樂團／場地</label><input id="venue">
+<label>Label</label><input id="label">
+<div class="traylab">Label 快選</div><div class="chips" id="trayLabel"></div>
+<label>片源</label><div class="seg" id="srcSeg"></div>
+<label>性質</label><div class="seg" id="natSeg"></div>
+<h2>③ 作品確認</h2>
+<label>版本名</label><input id="verName">
+<label>作品名（要同作品卡一致）</label><input id="workName">
+<label>作曲家</label><select id="composerSel"></select>
+<label>作曲家自訂（填咗取代上面）</label><input id="composerCus">
+<label>演出範圍</label><div class="seg" id="rangeSeg"></div>
+<label>樂章</label><input id="movs">
+<label>對比版本（可空）</label><input id="vcomp">
+<h2>④ 逐段筆記</h2>
+<button onclick="loadYT()">▶️ 載入播放器（落釘用）</button>
+<div id="playerWrap" style="display:none"><div id="ytbox"></div>
+<button onclick="pin()" style="width:100%;margin-top:6px">⏱ 落釘</button></div>
+<p class="note">先撳入某行再落釘＝釘嗰行；冇揀就自動加新行。</p>
+<div id="notes"></div>
+<button onclick="addNote()">＋ 加一段</button>
+<div class="traylab">術語快選（撳入某行後用）</div><div class="chips" id="trayNote"></div>
+<h2>⑤ 總結</h2>
+<label>狀態</label><div class="seg" id="stSeg"></div>
+<label>總評</label><div class="seg" id="rtSeg"></div>
+<label>速度印象</label><input id="f_tempo">
+<div class="traylab">速度快選</div><div class="chips" id="trayTempo"></div>
+<label>音色取向</label><input id="f_timbre">
+<div class="traylab">音色快選</div><div class="chips" id="trayTimbre"></div>
+<label>風格取向</label><input id="f_style">
+<div class="traylab">風格快選</div><div class="chips" id="trayStyle"></div>
+<label>一句話總評</label><input id="verdict">
+<h3>✅ 最鍾意</h3><div id="likeRows"></div><button onclick="addRow('likeRows',likes,'邊段／邊樣？')">＋ 加</button>
+<h3>⛔ 唔鍾意</h3><div id="dislikeRows"></div><button onclick="addRow('dislikeRows',dislikes,'邊段／邊樣？')">＋ 加</button>
+<h3>✍️ 對我自己拉奏嘅改動</h3><div id="changeRows"></div><button onclick="addRow('changeRows',changes,'改乜？')">＋ 加一行</button>
+<h3>🧪 練習實驗</h3><div id="expRows"></div><button onclick="addRow('expRows',exps,'試乜？')">＋ 加</button>
+<label>待補</label><input id="todo">
+<button class="go" onclick="genVer()">⚙️ 生成版本卡</button>
+<label>輸出</label><textarea id="outVer" rows="12"></textarea>
+<button style="width:100%" onclick="copyOut('outVer')">📋 Copy</button>
+<button class="clr" onclick="clearCard('ver',this)">🧹 清空呢張卡</button>
+</div>
+
+<div class="page" id="page-work">
+<label>作品名稱</label><input id="w_name">
+<label>暱稱</label><input id="w_nick">
+<label>作曲家</label><select id="w_comp"></select>
+<label>作曲家自訂</label><input id="w_compCus">
+<label>作品編號</label><input id="w_cat" placeholder="Op.67 / BWV 1004">
+<label>總調性</label><input id="w_key">
+<label>編制</label><input id="w_scoring">
+<label>樂譜版本</label><input id="w_edition">
+<label>時期／樂派（撳揀）</label><div class="chips" id="eraChips"></div>
+<label>創作年份</label><input id="w_year" inputmode="numeric">
+<h3>曲式結構（逐樂章）</h3>
+<div id="movRows"></div>
+<button onclick="addMov()">＋ 加樂章</button>
+<div class="traylab">速度/表情快選（撳入某行後用）</div><div class="chips" id="trayMov"></div>
+<label>創作背景</label><textarea id="w_background" rows="3"></textarea>
+<label>題獻／首演</label><input id="w_dedication">
+<label>同類作品</label><input id="w_similar">
+<textarea id="w_similarnote" rows="2" placeholder="似喺邊"></textarea>
+<h3>🎯 理想版本目標</h3>
+<input id="goal_narrative" placeholder="敘事：…">
+<input id="goal_tempo" placeholder="速度：…">
+<input id="goal_timbre" placeholder="音色：…">
+<input id="goal_style" placeholder="風格：…">
+<input id="goal_structure" placeholder="結構焦點：…">
+<h3>📎 資料來源</h3>
+<div id="wsrcRows"></div>
+<button onclick="addSrc('wsrcRows',wsrc)">📎 加來源</button>
+<button class="go" onclick="genWork()">⚙️ 生成作品卡</button>
+<label>輸出</label><textarea id="outWork" rows="12"></textarea>
+<button style="width:100%" onclick="copyOut('outWork')">📋 Copy</button>
+<button class="clr" onclick="clearCard('work',this)">🧹 清空呢張卡</button>
+</div>
+
+<div class="page" id="page-mus">
+<label>名稱</label><input id="m_name">
+<label>別名／其他拼寫</label><input id="m_alias">
+<label>類型（撳揀）</label><div class="chips" id="mtypeChips"></div>
+<label>樂器（打名＋Enter）</label><input id="m_instIn">
+<div class="chips" id="m_chips"></div>
+<div class="traylab">樂器快選</div><div class="chips" id="trayInst"></div>
+<label>Roles（打名＋Enter）</label><input id="m_roleIn">
+<div class="chips" id="r_chips"></div>
+<div class="traylab">Roles 快選</div><div class="chips" id="trayRole"></div>
+<label>Style-Era</label><input id="m_styleera">
+<label>活躍年代</label>
+<div class="row"><input id="m_from" inputmode="numeric" placeholder="由"><input id="m_to" inputmode="numeric" placeholder="迄"></div>
+<label>一句話</label><textarea id="m_oneline" rows="2"></textarea>
+<h3>📎 資料來源</h3>
+<div id="msrcRows"></div>
+<button onclick="addSrc('msrcRows',msrc)">📎 加來源</button>
+<button class="go" onclick="genMus()">⚙️ 生成音樂人卡</button>
+<label>輸出</label><textarea id="outMus" rows="10"></textarea>
+<button style="width:100%" onclick="copyOut('outMus')">📋 Copy</button>
+<button class="clr" onclick="clearCard('mus',this)">🧹 清空呢張卡</button>
+</div>
+
+<div class="page" id="page-voc">
+<label>搜尋（中/英/解釋）</label><input id="vq" oninput="renderVocabList()">
+<div class="catbar" id="catbar"></div>
+<div id="vlist"></div>
+<h2>＋ 新增詞條（存呢部機）</h2>
+<label>中文（必要）</label><input id="va_zh">
+<label>英文</label><input id="va_en">
+<label>類別</label><select id="va_cat"></select>
+<label>解釋</label><input id="va_note">
+<button class="go" onclick="addVocab()">＋ 加入詞庫</button>
+</div>
+
+<script>
+window.onerror=function(m){var e=document.getElementById("err");e.style.display="block";e.textContent="⚠️ "+m;return false};
+var BUILTIN=[
+["comp","巴哈","Bach",""],["comp","貝多芬","Beethoven",""],["comp","莫扎特","Mozart",""],["comp","蕭邦","Chopin",""]
+];
+var CATNAMES={comp:"作曲家",inst:"樂器",role:"角色",form:"曲式",tempo:"速度",dyn:"力度",expr:"表情",tech:"學習技術"};
+var ERAS=["巴洛克","古典","浪漫","印象派","現代","當代"];
+var MTYPES=["獨奏家","指揮","室內樂","歌唱家","樂團","合唱團","伴奏","學者/教育家"];
+function $(id){return document.getElementById(id)}
+var SEEDS=[],SEEDED=false;
+function V(){return SEEDED?SEEDS.concat(loadCustom()):BUILTIN.concat(loadCustom())}
+function has(c){var f=V(),i;for(i=0;i<f.length;i++)if(f[i][0]===c)return true;return false}
+function poolOf(cs){var o=[];V().forEach(function(v){if(cs.indexOf(v[0])>=0&&o.indexOf(v[1])<0)o.push(v[1])});return o}
+var perf=[],mroles=[],minst=[],notes=[],movs=[],likes=[],dislikes=[],changes=[],exps=[],wsrc=[],msrc=[],wera=[],mtype=[],S={},LF={type:null,i:0},VCAT="",ytPlayer=null;
+
+function toast(m){var t=$("tag");t.textContent=m;clearTimeout(toast._t);toast._t=setTimeout(function(){if(t.textContent===m)t.textContent=""},2600)}
+function show(t){["ver","work","mus","voc"].forEach(function(x){$("page-"+x).classList.toggle("show",x===t);$("tab-"+x).classList.toggle("on",x===t)})}
+
+var segDefs={srcSeg:["官方","粉絲拍攝","電視廣播"],rangeSeg:["全部","選段"],natSeg:["現場","錄音室","彩排","廣播"],stSeg:["🚧聽緊","⏳待補","✅完成"],rtSeg:["⭐","⭐⭐","⭐⭐⭐","⭐⭐⭐⭐","⭐⭐⭐⭐⭐"]};
+Object.keys(segDefs).forEach(function(k){segDefs[k].forEach(function(v){var b=document.createElement("button");b.textContent=v;b.onclick=function(){Array.prototype.forEach.call($(k).children,function(x){x.classList.remove("on")});b.classList.add("on");S[k]=v;save()};$(k).appendChild(b)})});
+function markSeg(k,val){Array.prototype.forEach.call($(k).children,function(b){if(b.textContent===val)b.classList.add("on")});S[k]=val}
+
+function drawList(box,arr){$(box).innerHTML="";arr.forEach(function(p,i){var b=document.createElement("button");b.className="chip on";b.textContent=p+" ×";b.onclick=function(){arr.splice(i,1);drawList(box,arr);save()};$(box).appendChild(b)})}
+function hookAdd(inp,arr,box){$(inp).addEventListener("keydown",function(e){if(e.key===","||e.key==="Enter"){var n=$(inp).value.replace(/,$/,"").trim();if(n&&arr.indexOf(n)<0){arr.push(n);drawList(box,arr);save()}$(inp).value="";e.preventDefault()}})}
+hookAdd("perfInput",perf,"perfChips");hookAdd("m_instIn",minst,"m_chips");hookAdd("m_roleIn",mroles,"r_chips");
+
+function drawRows(boxId,arr,ph){$(boxId).innerHTML="";arr.forEach(function(r,i){var d=document.createElement("div");d.className="row";
+var x=document.createElement("input");x.placeholder=ph;x.value=r.x||"";
+var del=document.createElement("button");del.textContent="✕";
+x.oninput=function(){r.x=x.value;save()};del.onclick=function(){arr.splice(i,1);drawRows(boxId,arr,ph);save()};
+d.appendChild(x);d.appendChild(del);$(boxId).appendChild(d)})}
+function addRow(boxId,arr,ph){arr.push({x:""});drawRows(boxId,arr,ph);save()}
+function drawSrc(boxId,arr){$(boxId).innerHTML="";arr.forEach(function(r,i){var d=document.createElement("div");d.className="row";
+var a=document.createElement("input");a.placeholder="名／描述";a.value=r.d||"";
+var b=document.createElement("input");b.placeholder="https://…";b.value=r.u||"";
+var del=document.createElement("button");del.textContent="✕";
+a.oninput=function(){r.d=a.value;save()};b.oninput=function(){r.u=b.value;save()};del.onclick=function(){arr.splice(i,1);drawSrc(boxId,arr);save()};
+d.appendChild(a);d.appendChild(b);d.appendChild(del);$(boxId).appendChild(d)})}
+function addSrc(boxId,arr){arr.push({d:"",u:""});drawSrc(boxId,arr);save()}
+
+function redrawNotes(){$("notes").innerHTML="";notes.forEach(function(n,i){if(!n.del)buildNote(i)})}
+function buildNote(i){var n=notes[i];var d=document.createElement("div");d.className="row";
+var t=document.createElement("input");t.className="tm";t.placeholder="mm:ss";t.value=n.t||"";
+var x=document.createElement("textarea");x.rows=2;x.placeholder="段落／觀察";x.value=n.txt||"";
+var del=document.createElement("button");del.textContent="✕";
+t.oninput=function(){n.t=t.value;save()};x.onfocus=function(){LF={type:"note",i:i}};x.oninput=function(){n.txt=x.value;save()};
+del.onclick=function(){n.del=1;redrawNotes();save()};
+d.appendChild(t);d.appendChild(x);d.appendChild(del);$("notes").appendChild(d)}
+function addNote(){notes.push({t:"",txt:""});buildNote(notes.length-1)}
+
+var ROMAN=["I.","II.","III.","IV.","V.","VI.","VII.","VIII."];
+function redrawMovs(){$("movRows").innerHTML="";movs.forEach(function(m,i){buildMov(i)})}
+function buildMov(i){var m=movs[i];var d=document.createElement("div");d.className="row";
+var l=document.createElement("input");l.className="tm";l.value=m.l;l.oninput=function(){m.l=l.value;save()};
+var x=document.createElement("input");x.placeholder="速度＋描述";x.value=m.txt;
+var del=document.createElement("button");del.textContent="✕";
+x.onfocus=function(){LF={type:"mov",i:i}};x.oninput=function(){m.txt=x.value;save()};
+del.onclick=function(){movs.splice(i,1);redrawMovs();save()};
+d.appendChild(l);d.appendChild(x);d.appendChild(del);$("movRows").appendChild(d)}
+function addMov(){movs.push({l:ROMAN[movs.length]||"",txt:""});redrawMovs();save()}
+
+function tapTerm(zh){if(LF.type==="note"&&notes[LF.i]&&!notes[LF.i].del){notes[LF.i].txt=(notes[LF.i].txt||"")+zh+" ";redrawNotes();save()}
+else if(LF.type==="mov"&&movs[LF.i]){movs[LF.i].txt=(movs[LF.i].txt||"")+zh+" ";redrawMovs();save()}
+else toast("先撳入某行，再撓術語")}
+function mkTray(box,cats,fn){if(!$(box))return;$(box).innerHTML="";cats.forEach(function(c){
+V().filter(function(v){return v[0]===c}).forEach(function(v){var b=document.createElement("button");b.className="chip";b.textContent=v[1];b.title=(v[2]?v[2]+" — ":"")+(v[3]||"");b.onclick=function(){fn?fn(v[1]):tapTerm(v[1])};$(box).appendChild(b)})})}
+
+function fillSelect(id){var cur=$(id).value;$(id).innerHTML="";
+var pool=SEEDED?V().filter(function(v){return v[0]==="音樂人"&&v[4]==="作曲家"}):V().filter(function(v){return v[0]==="comp"});
+pool.forEach(function(v){var o=document.createElement("option");o.textContent=v[1];o.title=v[2];$(id).appendChild(o)});
+if(cur)$(id).value=cur}
+function mkToggle(boxId,arr,pool){if(!$(boxId))return;$(boxId).innerHTML="";pool.forEach(function(t){var b=document.createElement("button");b.className="chip"+(arr.indexOf(t)>=0?" on":"");b.textContent=t;b.onclick=function(){var i=arr.indexOf(t);if(i<0)arr.push(t);else arr.splice(i,1);b.classList.toggle("on");save()};$(boxId).appendChild(b)})}
+
+function renderAll(){fillSelect("composerSel");fillSelect("w_comp");
+mkTray("trayNote",has("術語")?["術語","技巧面向","表情記號","力度記號","速度術語"]:["tempo","dyn","expr","tech"]);
+mkTray("trayMov",has("速度術語")?["速度術語","表情記號"]:["tempo","expr"]);
+mkTray("trayTempo",has("速度印象")?["速度印象"]:["tempo"],function(zh){$("f_tempo").value=($("f_tempo").value+" "+zh).trim();save()});
+mkTray("trayTimbre",has("音色取向")?["音色取向"]:[],function(zh){$("f_timbre").value=($("f_timbre").value+" "+zh).trim();save()});
+mkTray("trayStyle",has("風格取向")?["風格取向"]:[],function(zh){$("f_style").value=($("f_style").value+" "+zh).trim();save()});
+mkTray("trayLabel",has("Label")?["Label"]:[],function(zh){$("label").value=zh;save()});
+mkTray("trayInst",has("樂器")?["樂器","室內樂"]:[],function(zh){if(minst.indexOf(zh)<0){minst.push(zh);drawList("m_chips",minst);save()}});
+mkTray("trayRole",has("Roles")?["Roles"]:[],function(zh){if(mroles.indexOf(zh)<0){mroles.push(zh);drawList("r_chips",mroles);save()}});
+mkToggle("eraChips",wera,has("時期")?poolOf(["時期","樂派"]):ERAS);
+mkToggle("mtypeChips",mtype,MTYPES);
+renderCats();renderVocabList()}
+
+function renderCats(){var cb=$("catbar");cb.innerHTML="";var names=["全部"];Object.keys(CATNAMES).forEach(function(k){names.push(CATNAMES[k])});names.forEach(function(n){var b=document.createElement("button");b.textContent=n;if((VCAT===""&&n==="全部")||CATNAMES[VCAT]===n)b.classList.add("on");
+b.onclick=function(){VCAT=(n==="全部")?"":Object.keys(CATNAMES).filter(function(k){return CATNAMES[k]===n})[0]||"";renderCats();renderVocabList()};cb.appendChild(b)})}
+function renderVocabList(){var q=($("vq").value||"").toLowerCase();var d=$("vlist");d.innerHTML="";
+V().filter(function(v){return(!VCAT||v[0]===VCAT)&&(!q||((v[1]+v[2]+v[3]+(typeof v[4]==="string"?v[4]:"")).toLowerCase().indexOf(q)>=0))}).forEach(function(v){
+var r=document.createElement("div");r.className="vrow";
+var d3=v[3]||((typeof v[4]==="string"&&v[4])?"#"+v[4]:"");
+r.innerHTML="<b>"+v[1]+"</b> <span class='en'>"+v[2]+"</span><span class='vn'>"+d3+"</span>";
+if(typeof v[4]==="number"){var x=document.createElement("button");x.className="del";x.textContent="🗑";x.onclick=function(){delVocab(v[4])};r.appendChild(x)}
+d.appendChild(r)})}
+function loadCustom(){try{return JSON.parse(localStorage.getItem("musvocab")||"[]")}catch(e){return[]}}
+function addVocab(){var zh=$("va_zh").value.trim();
+if(!zh){toast("打咗中文名先");return}
+var c=loadCustom();c.push([$("va_cat").value,zh,$("va_en").value.trim(),$("va_note").value.trim(),Date.now()]);
+try{localStorage.setItem("musvocab",JSON.stringify(c))}catch(e){}
+$("va_zh").value="";$("va_en").value="";$("va_note").value="";renderAll();toast("已加 ✓")}
+function delVocab(uid){var c=loadCustom().filter(function(v){return v[4]!==uid});try{localStorage.setItem("musvocab",JSON.stringify(c))}catch(e){}renderAll()}
+$("va_cat").innerHTML=Object.keys(CATNAMES).map(function(k){return"<option value='"+k+"'>"+CATNAMES[k]+"</option>"}).join("");
+
+// ===== 詞庫：直接駁兩個 seed 檔（格式已確認 {cat,zh,en,tag,desc}） =====
+(function(){var files=["vocab-seed-1.js","vocab-seed-2.js"],n=0;
+files.forEach(function(f){var s=document.createElement("script");s.src=f;
+s.onload=function(){n++;fin()};s.onerror=function(){n++;fin()};document.body.appendChild(s)});
+function fin(){if(n<files.length)return;
+var raw=(window.VOCAB_SEED_1||[]).concat(window.VOCAB_SEED_2||[]);
+if(raw.length>=200){SEEDS=raw.map(function(t){return[t.cat||"",String(t.zh||"").trim(),String(t.en||"").trim(),String(t.desc||"").trim(),String(t.tag||"").trim()]}).filter(function(v){return v[1]});
+SEEDS.forEach(function(v){if(v[0]&&!CATNAMES[v[0]])CATNAMES[v[0]]=v[0]});
+$("va_cat").innerHTML=Object.keys(CATNAMES).map(function(k){return"<option value='"+k+"'>"+CATNAMES[k]+"</option>"}).join("");
+SEEDED=true;VCAT="";renderAll();toast("詞庫駁通 ✓ 共 "+SEEDS.length+" 條")}
+else toast("⚠️ seed 載入得 "+raw.length+" 條——確認兩個檔喺同一 repo 根目錄")}})();
+
+// ===== YouTube 自動抓＋智能拆解 =====
+function vid(u){var m=(u||"").match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:null}
+function fetchMeta(silent){var id=vid($("url").value);if(!id){toast("認唔到 YouTube id");return}
+fetch("https://www.youtube.com/oembed?format=json&url="+encodeURIComponent("https://www.youtube.com/watch?v="+id))
+.then(function(r){return r.json()}).then(function(j){
+$("ytThumb").src=j.thumbnail_url;$("ytTitle").textContent=j.title;$("ytChan").textContent=j.author_name;$("ytmeta").style.display="flex";
+if(!$("verName").value){$("verName").value=j.title}
+smartFill(j.title,j.author_name);
+if(!silent)toast("抓到 ✓ 已自動拆解填表")}).catch(function(){if(!silent)toast("抓唔到，手動填都得")})}
+function useTitle(){var t=$("ytTitle").textContent;if(t){$("verName").value=t;save();toast("已套用")}}
+
+  function smartFill(title,author){
+if(!title)return;var t=title,ch=false;
+// 1) 作曲家＋演奏者：同 162 條音樂人比對（中英名＋姓氏）
+V().filter(function(v){return v[0]==="音樂人"}).forEach(function(m){
+var cands=[m[2],m[1]];if(m[2]&&m[2].indexOf(" ")>0)cands.push(m[2].split(" ").pop());
+for(var i=0;i<cands.length;i++){var n=cands[i];if(!n||n.length<4)continue;
+if(t.indexOf(n)>=0||(author&&author.indexOf(n)>=0)){
+if(m[4]==="作曲家"){if(!$("composerCus").value){$("composerCus").value=m[1];ch=true}}
+else if(perf.indexOf(m[1])<0){perf.push(m[1]);drawList("perfChips",perf);ch=true}
+break}}});
+// 2) 作品名：切開 title，搵含體裁關鍵字嗰段，剝走「作曲家:」前綴
+var parts=t.split(/\s+[-–—|]\s+|\s*[:：]\s+/).filter(function(s){return s.length>2});
+var kw=/(symphony|concerto|sonata|partita|suite|overture|variations|quartet|fantasia|rhapsody|交響|協奏|奏鳴|組曲|序曲|變奏|幻想|狂想|四重)/i;
+var work=parts.filter(function(s){return kw.test(s)})[0]||"";
+if(work){var cc=$("composerCus").value||$("composerSel").value||"";var ce="";
+V().forEach(function(v){if(v[0]==="音樂人"&&v[4]==="作曲家"&&v[1]===cc)ce=v[2]});
+if(ce)work=work.replace(new RegExp("^"+ce.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s*[:：]\\s*"),"");
+if(!$("workName").value){$("workName").value=work;ch=true}}
+// 3) 暱稱：引號入面嗰截
+var nick=t.match(/["“”']([^"“”']{3,40})["“”']/);if(nick&&!$("w_nick").value){$("w_nick").value=nick[1];ch=true}
+// 4) 編號／調性／樂章
+var cm=t.match(/\b(BWV\s?\d+|Op\.?\s?\d+|K\.\s?\d+|D\.\s?\d+|RV\s?\d+)\b/i);
+if(cm&&!$("w_cat").value)$("w_cat").value=cm[1].replace(/\s+/g," ").replace("Op","Op.");
+var km=t.match(/\b([A-G][b#]?)\s?(major|minor|大調|小調)/i);
+if(km&&!$("w_key").value)$("w_key").value=km[1]+(/minor|小調/i.test(km[2])?"小調":"大調");
+var mv=t.match(/\b([IVX]+\.\s[^-–—|]{3,50})/);if(mv&&!$("movs").value){$("movs").value=mv[1].trim();ch=true}
+// 5) 場地（音樂廳詞庫比對）＋ 現場
+V().forEach(function(v){if(v[0]==="音樂廳"&&!$("venue").value&&t.indexOf(v[2])>=0){$("venue").value=v[2]+" "+v[1];ch=true}});
+if(/live|現場/i.test(t)&&!S.natSeg){markSeg("natSeg","現場");ch=true}
+if(ch)save()}
+  var lastAuto="";
+$("url").addEventListener("input",function(){autoDetect();save();var id=vid($("url").value);
+if(id&&id!==lastAuto){lastAuto=id;setTimeout(function(){if(vid($("url").value)===id)fetchMeta(true)},400)}});
+function autoDetect(){var u=$("url").value;var m=[[ /youtu/,"YouTube"],[/bilibili/,"Bilibili"],[/nico/,"Niconico"],[/vimeo/,"Vimeo"]];
+for(var i=0;i<m.length;i++){if(m[i][0].test(u)){$("platform").value=m[i][1];return}}if(u)$("platform").value="其他"}
+function toSec(s){var m=s.match(/^(\d+):(\d{1,2})$/);return m?(+m[1]*60)+ +m[2]:null}
+function loadYT(){var id=vid($("url").value);if(!id){toast("先填 YouTube 連結");return}$("playerWrap").style.display="block";
+if(ytPlayer){ytPlayer.loadVideoById(id);return}
+window.onYouTubeIframeAPIReady=function(){ytPlayer=new YT.Player("ytbox",{videoId:id,playerVars:{rel:0}})};
+var s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";document.body.appendChild(s)}
+function pin(){if(!ytPlayer||!ytPlayer.getCurrentTime){toast("播放器未ready");return}
+var t=Math.floor(ytPlayer.getCurrentTime());var lab=Math.floor(t/60)+":"+("0"+t%60).slice(-2);
+if(LF.type!=="note"||!notes[LF.i]||notes[LF.i].del){addNote();LF={type:"note",i:notes.length-1}}
+notes[LF.i].t=lab;redrawNotes();save();toast("落釘 "+lab)}
+
+function genVer(){var v=function(id){return $(id).value.trim()};
+var name=v("verName")||v("workName")||"未命名版本";
+var comp=v("composerCus")||$("composerSel").value;
+var o="- [[版本/"+name+"]]\n";
+[["平台",v("platform")],["連結",v("url")],["時長",v("dur")],["演出日期",v("date")],["樂團/場地",v("venue")],["Label",v("label")],["片源",S.srcSeg||""],["性質",S.natSeg||""],["狀態",S.stSeg||"🚧聽緊"],["評分",S.rtSeg||""],["速度印象",v("f_tempo")],["音色取向",v("f_timbre")],["風格取向",v("f_style")],["樂章",v("movs")]].forEach(function(p){if(p[1])o+="  "+p[0]+":: "+p[1]+"\n"});
+if(v("workName"))o+="  作品:: [[作品/"+v("workName")+"]]\n";
+if(comp)o+="  作曲家:: [["+comp+"]]\n";
+if(perf.length)o+="  演奏者:: "+perf.map(function(p){return"[[音樂人/"+p+"]]"}).join(", ")+"\n";
+if(v("vcomp"))o+="  對比版本:: [[版本/"+v("vcomp")+"]]\n";
+if(v("verdict"))o+="  一句話總評:: "+v("verdict")+"\n";
+o+="\t- ## ④ 逐段筆記\n";
+var any=false;
+notes.forEach(function(n){if(n.del||(!n.t&&!n.txt))return;any=true;var s=toSec(n.t);var j=(s!==null&&v("url"))?v("url").split("?")[0]+"?t="+s+"s":"";
+o+="\t  "+n.t+" "+n.txt+(j?" — 跳轉："+j:"")+"\n"});
+if(!any)o+="\t  0:00 開始 —\n";
+o+="\t- ## ⑤ 總結\n";
+likes.forEach(function(r){if(r.x)o+="\t  ✅ "+r.x+"\n"});
+dislikes.forEach(function(r){if(r.x)o+="\t  ⛔ "+r.x+"\n"});
+changes.forEach(function(r){if(r.x)o+="\t  ✍️ "+r.x+"\n"});
+exps.forEach(function(r){if(r.x)o+="\t  🧪 "+r.x+"\n"});
+o+="\t  待補："+v("todo")+"\n";
+$("outVer").value=o;save();toast("版本卡生成 ✓");$("outVer").scrollIntoView({behavior:"smooth"})}
+
+  function genWork(){var v=function(id){return $(id).value.trim()};
+var name=v("w_name")||v("w_nick")||"未命名作品";
+var comp=v("w_compCus")||$("w_comp").value;
+var o="- [[作品/"+name+"]]\n";
+[["暱稱",v("w_nick")],["目錄編號",v("w_cat")],["調性",v("w_key")],["編制",v("w_scoring")],["樂譜版本",v("w_edition")],["創作年份",v("w_year")]].forEach(function(p){if(p[1])o+="  "+p[0]+":: "+p[1]+"\n"});
+if(comp)o+="  作曲家:: [["+comp+"]]\n";
+if(wera.length)o+="  時期/樂派:: "+wera.join(", ")+"\n";
+if(v("w_background"))o+="  創作背景:: "+v("w_background")+"\n";
+if(v("w_dedication"))o+="  題獻/首演:: "+v("w_dedication")+"\n";
+if(v("w_similar"))o+="  同類作品:: [[作品/"+v("w_similar")+"]]"+(v("w_similarnote")?" — "+v("w_similarnote"):"")+"\n";
+o+="\t- 🎯 理想版本目標\n";
+[["敘事","goal_narrative"],["速度","goal_tempo"],["音色","goal_timbre"],["風格","goal_style"],["結構焦點","goal_structure"]].forEach(function(g){if(v(g[1]))o+="\t  "+g[0]+"："+v(g[1])+"\n"});
+o+="\t- 樂章明細\n";
+var rows=movs.filter(function(m){return m.l||m.txt});
+if(rows.length)rows.forEach(function(m){o+="\t  "+m.l+" "+m.txt+"\n"});else o+="\t  I. \n";
+wsrc.forEach(function(r){if(r.d||r.u)o+="  資料來源:: "+r.d+(r.u?" — "+r.u:"")+"\n"});
+$("outWork").value=o;save();toast("作品卡生成 ✓");$("outWork").scrollIntoView({behavior:"smooth"})}
+
+function genMus(){var v=function(id){return $(id).value.trim()};
+var name=v("m_name")||"未命名音樂人";
+var o="- [[音樂人/"+name+"]]\n";
+[["別名",v("m_alias")],["Style-Era",v("m_styleera")]].forEach(function(p){if(p[1])o+="  "+p[0]+":: "+p[1]+"\n"});
+if(mtype.length)o+="  類型:: "+mtype.join(", ")+"\n";
+if(minst.length)o+="  樂器:: "+minst.join(", ")+"\n";
+if(mroles.length)o+="  Roles:: "+mroles.join(", ")+"\n";
+if(v("m_from"))o+="  活躍年代:: "+v("m_from")+"–"+(v("m_to")||"")+"\n";
+if(v("m_oneline"))o+="  一句話:: "+v("m_oneline")+"\n";
+msrc.forEach(function(r){if(r.d||r.u)o+="  資料來源:: "+r.d+(r.u?" — "+r.u:"")+"\n"});
+$("outMus").value=o;save();toast("音樂人卡生成 ✓");$("outMus").scrollIntoView({behavior:"smooth"})}
+
+function copyOut(id){var t=$(id);t.focus();t.select();
+try{t.setSelectionRange(0,999999)}catch(e){}
+var ok=false;
+try{if(navigator.clipboard){navigator.clipboard.writeText(t.value);ok=true}}catch(e){}
+if(!ok){try{ok=document.execCommand("copy")}catch(e){}}
+toast(ok?"已 copy ✓（去 Logseq 貼）":"自動 copy 唔到——長撳輸出格→全選→拷貝")}
+
+  var armT={};
+function clearCard(k,btn){
+if(btn.dataset.arm==="1"){doClear(k);btn.dataset.arm="";btn.textContent=btn.dataset.orig;clearTimeout(armT[k]);toast("已清空")}
+else{btn.dataset.orig=btn.textContent;btn.dataset.arm="1";btn.textContent="⚠️ 再撳一次確認清空";
+armT[k]=setTimeout(function(){btn.dataset.arm="";btn.textContent=btn.dataset.orig},2500)}}
+function doClear(k){
+if(k==="ver"){["url","platform","dur","date","venue","label","verName","workName","composerCus","movs","vcomp","verdict","todo","f_tempo","f_timbre","f_style"].forEach(function(id){$(id).value=""});
+perf=[];drawList("perfChips",perf);notes=[{t:"",txt:""}];redrawNotes();
+likes=[];drawRows("likeRows",likes,"邊段？");dislikes=[];drawRows("dislikeRows",dislikes,"邊段？");
+changes=[];drawRows("changeRows",changes,"改乜？");exps=[];drawRows("expRows",exps,"試乜？");
+$("ytmeta").style.display="none";lastAuto="";
+["srcSeg","rangeSeg","natSeg","stSeg","rtSeg"].forEach(function(s){Array.prototype.forEach.call($(s).children,function(b){b.classList.remove("on")});delete S[s]})}
+if(k==="work"){["w_name","w_nick","w_compCus","w_cat","w_key","w_scoring","w_edition","w_year","w_background","w_dedication","w_similar","w_similarnote","goal_narrative","goal_tempo","goal_timbre","goal_style","goal_structure"].forEach(function(id){$(id).value=""});
+wera=[];mkToggle("eraChips",wera,has("時期")?poolOf(["時期","樂派"]):ERAS);movs=[{l:"I.",txt:""}];redrawMovs();wsrc=[];drawSrc("wsrcRows",wsrc)}
+if(k==="mus"){["m_name","m_alias","m_instIn","m_roleIn","m_styleera","m_from","m_to","m_oneline"].forEach(function(id){$(id).value=""});
+minst=[];drawList("m_chips",minst);mroles=[];drawList("r_chips",mroles);mtype=[];mkToggle("mtypeChips",mtype,MTYPES);msrc=[];drawSrc("msrcRows",msrc)}
+save()}
+
+var FIELDS=["platform","dur","date","venue","label","verName","workName","composerSel","composerCus","movs","vcomp","verdict","todo","f_tempo","f_timbre","f_style","w_name","w_nick","w_comp","w_compCus","w_cat","w_key","w_scoring","w_edition","w_year","w_background","w_dedication","w_similar","w_similarnote","goal_narrative","goal_tempo","goal_timbre","goal_style","goal_structure","m_name","m_alias","m_styleera","m_from","m_to","m_oneline"];
+FIELDS.forEach(function(id){$(id).addEventListener("input",save)});
+function save(){var f={};FIELDS.forEach(function(id){f[id]=$(id).value});f.url=$("url").value;
+try{localStorage.setItem("musgen5",JSON.stringify({f:f,perf:perf,mroles:mroles,minst:minst,notes:notes,movs:movs,likes:likes,dislikes:dislikes,changes:changes,exps:exps,wsrc:wsrc,msrc:msrc,wera:wera,mtype:mtype,s:S}))}catch(e){}}
+function load(){try{var d=JSON.parse(localStorage.getItem("musgen5"));if(!d)return;
+Object.keys(d.f||{}).forEach(function(id){if($(id))$(id).value=d.f[id]});
+perf=d.perf||[];drawList("perfChips",perf);
+mroles=d.mroles||[];drawList("r_chips",mroles);
+minst=d.minst||[];drawList("m_chips",minst);
+notes=(d.notes&&d.notes.length)?d.notes:[{t:"",txt:""}];redrawNotes();
+movs=(d.movs&&d.movs.length)?d.movs:[{l:"I.",txt:""}];redrawMovs();
+likes=d.likes||[];drawRows("likeRows",likes,"邊段？");
+dislikes=d.dislikes||[];drawRows("dislikeRows",dislikes,"邊段？");
+changes=d.changes||[];drawRows("changeRows",changes,"改乜？");
+exps=d.exps||[];drawRows("expRows",exps,"試乜？");
+wsrc=d.wsrc||[];drawSrc("wsrcRows",wsrc);
+msrc=d.msrc||[];drawSrc("msrcRows",msrc);
+wera=d.wera||[];mtype=d.mtype||[];
+mkToggle("eraChips",wera,has("時期")?poolOf(["時期","樂派"]):ERAS);mkToggle("mtypeChips",mtype,MTYPES);
+S=d.s||{};Object.keys(S).forEach(function(k){Array.prototype.forEach.call($(k).children,function(b){if(b.textContent===S[k])b.classList.add("on")})});
+autoDetect()}catch(e){}}
+
+renderAll();load();
+</script>
+</body>
+</html>
