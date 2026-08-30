@@ -444,6 +444,68 @@ S=d.s||{};Object.keys(S).forEach(function(k){Array.prototype.forEach.call($(k).c
 autoDetect()}catch(e){}}
 
 renderAll();load();
+
+  // ===== v6.2 Logseq 原生格式（屬性行頭・無heading・純outline） =====
+function genVer(){var v=function(id){return $(id).value.trim()};
+var name=v("verName")||v("workName")||"未命名版本";
+var comp=v("composerCus")||$("composerSel").value;
+var o="",first=1;
+function P(k,val){if(val===undefined||val===null||val==="")return;o+=(first?"- ":"  ")+k+":: "+val+"\n";first=0}
+P("狀態",S.stSeg||"🚧聽緊");P("平台",v("platform"));P("連結",v("url"));P("時長",v("dur"));P("演出日期",v("date"));P("樂團/場地",v("venue"));P("Label",v("label"));P("片源",S.srcSeg);P("性質",S.natSeg);P("評分",S.rtSeg);P("速度印象",v("f_tempo"));P("音色取向",v("f_timbre"));P("風格取向",v("f_style"));P("樂章",v("movs"));
+P("作品",v("workName")?"[[作品/"+v("workName")+"]]":"");
+P("作曲家",comp?"[["+comp+"]]":"");
+if(perf.length)P("演奏者",perf.map(function(p){return"[[音樂人/"+p+"]]"}).join(", "));
+P("對比版本",v("vcomp")?"[[版本/"+v("vcomp")+"]]":"");
+P("一句話總評",v("verdict"));
+o+=(first?"- ":"  ")+"[[版本/"+name+"]]\n";first=0;
+o+="\t- **④ 逐段筆記**\n";
+var any=false;
+notes.forEach(function(n){if(n.del||(!n.t&&!n.txt))return;any=true;var s=toSec(n.t);var j=(s!==null&&v("url"))?v("url").split("?")[0]+"?t="+s+"s":"";
+o+="\t\t- "+(n.t?n.t+" ":"")+n.txt+(j?" [跳轉]("+j+")":"")+"\n"});
+if(!any)o+="\t\t- 0:00 開始 —\n";
+o+="\t- **⑤ 總結**\n";
+likes.forEach(function(r){if(r.x)o+="\t\t- ✅ "+r.x+"\n"});
+dislikes.forEach(function(r){if(r.x)o+="\t\t- ⛔ "+r.x+"\n"});
+changes.forEach(function(r){if(r.x)o+="\t\t- ✍️ "+r.x+"\n"});
+exps.forEach(function(r){if(r.x)o+="\t\t- 🧪 "+r.x+"\n"});
+if(v("todo"))o+="\t\t- 待補："+v("todo")+"\n";
+$("outVer").value=o;save();toast("版本卡生成 ✓")}
+
+function genWork(){var v=function(id){return $(id).value.trim()};
+var name=v("w_name")||v("w_nick")||"未命名作品";
+var comp=v("w_compCus")||$("w_comp").value;
+var o="",first=1;
+function P(k,val){if(val===undefined||val===null||val==="")return;o+=(first?"- ":"  ")+k+":: "+val+"\n";first=0}
+P("暱稱",v("w_nick"));P("目錄編號",v("w_cat"));P("調性",v("w_key"));P("編制",v("w_scoring"));P("樂譜版本",v("w_edition"));P("創作年份",v("w_year"));
+P("作曲家",comp?"[["+comp+"]]":"");
+if(wera.length)P("時期/樂派",wera.join(", "));
+P("創作背景",v("w_background"));P("題獻/首演",v("w_dedication"));
+P("同類作品",v("w_similar")?"[[作品/"+v("w_similar")+"]]"+(v("w_similarnote")?" — "+v("w_similarnote"):""):"");
+wsrc.forEach(function(r){if(r.d||r.u)P("資料來源",r.d+(r.u?" — "+r.u:""))});
+o+=(first?"- ":"  ")+"[[作品/"+name+"]]\n";first=0;
+o+="\t- **🎯 理想版本目標**\n";
+[["敘事","goal_narrative"],["速度","goal_tempo"],["音色","goal_timbre"],["風格","goal_style"],["結構焦點","goal_structure"]].forEach(function(g){if(v(g[1]))o+="\t\t- "+g[0]+"："+v(g[1])+"\n"});
+o+="\t- **樂章明細**\n";
+var rows=movs.filter(function(m){return m.l||m.txt});
+if(rows.length)rows.forEach(function(m){o+="\t\t- "+m.l+" "+m.txt+"\n"});else o+="\t\t- I. \n";
+$("outWork").value=o;save();toast("作品卡生成 ✓")}
+
+function genMus(){var v=function(id){return $(id).value.trim()};
+var name=v("m_name")||"未命名音樂人";
+var o="",first=1;
+function P(k,val){if(val===undefined||val===null||val==="")return;o+=(first?"- ":"  ")+k+":: "+val+"\n";first=0}
+P("別名",v("m_alias"));
+if(mtype.length)P("類型",mtype.join(", "));
+if(minst.length)P("樂器",minst.join(", "));
+if(mroles.length)P("Roles",mroles.join(", "));
+P("Style-Era",v("m_styleera"));
+if(v("m_from"))P("活躍年代",v("m_from")+"–"+(v("m_to")||""));
+P("一句話",v("m_oneline"));
+msrc.forEach(function(r){if(r.d||r.u)P("資料來源",r.d+(r.u?" — "+r.u:""))});
+o+=(first?"- ":"  ")+"[[音樂人/"+name+"]]\n";first=0;
+$("outMus").value=o;save();toast("音樂人卡生成 ✓")}
+
+  
 </script>
 </body>
 </html>
